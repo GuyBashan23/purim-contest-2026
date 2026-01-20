@@ -487,29 +487,13 @@ export async function submitSingleVote(
   // Determine phase (1 for VOTING, 2 for FINALS)
   const currentPhase = appSettings?.current_phase === 'FINALS' ? 2 : 1
 
-  // THE "3 COINS" LOGIC - Sequential operations to prevent race conditions
+  // THE "EUROVISION RULES" LOGIC - Sequential operations to prevent race conditions
+  // Rule 1: "Steal the Coin" - Each voter can give 8, 10, 12 points EXACTLY ONCE each per phase
+  // Rule 2: "Change Mind" - If voter changes vote on same entry, replace the old vote
+  // Rule 3: "Move Vote" - If voter gives same points to different entry, move the vote
   
   try {
-    // STEP A: Remove any existing vote by THIS user on THIS entry (Switch Rule)
-    // This handles the case where user is changing their vote on the same entry
-    const { error: deleteEntryError, count: deletedEntryCount } = await supabase
-      .from('votes')
-      .delete()
-      .eq('voter_phone', voterPhone)
-      .eq('entry_id', entryId)
-      .eq('phase', currentPhase)
-      .select('*', { count: 'exact', head: true })
-
-    if (deleteEntryError) {
-      console.error('[submitSingleVote] Error deleting existing vote on entry:', deleteEntryError)
-      return { error: 'שגיאה בהסרת הצבעה קודמת על תמונה זו' }
-    }
-
-    if (deletedEntryCount && deletedEntryCount > 0) {
-      console.log(`[submitSingleVote] Deleted ${deletedEntryCount} existing vote(s) on this entry`)
-    }
-
-    // STEP B: Remove any existing vote by THIS user with THIS EXACT SCORE on ANY entry (Steal Rule)
+    // STEP 1: "Steal the Coin" - Remove any existing vote by THIS user with THIS EXACT SCORE on ANY entry
     // This handles the case where user is "stealing" their 8/10/12 points from another entry
     // First, get the entry_id of the vote we're about to delete (for UI feedback)
     const { data: existingVoteWithPoints, error: findError } = await supabase
@@ -527,7 +511,7 @@ export async function submitSingleVote(
 
     const previousEntryId = existingVoteWithPoints?.entry_id || null
 
-    // Now delete the existing vote with same points
+    // Delete the existing vote with same points (if exists)
     const { error: deletePointsError, count: deletedPointsCount } = await supabase
       .from('votes')
       .delete()
@@ -542,10 +526,30 @@ export async function submitSingleVote(
     }
 
     if (deletedPointsCount && deletedPointsCount > 0) {
-      console.log(`[submitSingleVote] Deleted ${deletedPointsCount} existing vote(s) with same points from entry ${previousEntryId}`)
+      console.log(`[submitSingleVote] "Steal Coin": Deleted ${deletedPointsCount} vote(s) with ${points} points from entry ${previousEntryId}`)
     }
 
-    // STEP C: Insert the new vote
+    // STEP 2: "Change Mind" - Remove any existing vote by THIS user on THIS entry (if different points)
+    // This handles the case where user is changing their vote on the same entry
+    const { error: deleteEntryError, count: deletedEntryCount } = await supabase
+      .from('votes')
+      .delete()
+      .eq('voter_phone', voterPhone)
+      .eq('entry_id', entryId)
+      .eq('phase', currentPhase)
+      .select('*', { count: 'exact', head: true })
+
+    if (deleteEntryError) {
+      console.error('[submitSingleVote] Error deleting existing vote on entry:', deleteEntryError)
+      return { error: 'שגיאה בהסרת הצבעה קודמת על תמונה זו' }
+    }
+
+    if (deletedEntryCount && deletedEntryCount > 0) {
+      console.log(`[submitSingleVote] "Change Mind": Deleted ${deletedEntryCount} existing vote(s) on this entry`)
+    }
+
+    // STEP 3: Insert the new vote
+    // The trigger will automatically update the entry's total_score
     const { error: insertError, data: insertedVote } = await supabase
       .from('votes')
       .insert({
@@ -563,13 +567,13 @@ export async function submitSingleVote(
       if (insertError.code === '23505' || insertError.message?.includes('unique')) {
         // Check which constraint was violated
         if (insertError.message?.includes('votes_voter_phone_phase_key')) {
-          console.error('[submitSingleVote] Old constraint still exists! Run fix_votes_constraint.sql in Supabase SQL Editor.')
+          console.error('[submitSingleVote] Old constraint still exists! Run migration 018 in Supabase SQL Editor.')
           return { 
-            error: 'שגיאת מסד נתונים: יש להריץ את הקובץ fix_votes_constraint.sql ב-Supabase SQL Editor כדי להסיר את האילוץ הישן' 
+            error: 'שגיאת מסד נתונים: יש להריץ את המיגרציה 018 ב-Supabase SQL Editor' 
           }
         }
         if (insertError.message?.includes('votes_voter_phone_points_phase_key')) {
-          return { error: 'כבר הצבעת עם נקודות אלו' }
+          return { error: 'כבר הצבעת עם נקודות אלו. הפעולה נכשלה למרות הניסיון להסיר את ההצבעה הקודמת.' }
         }
         return { error: 'כבר הצבעת עם נקודות אלו' }
       }
@@ -577,6 +581,7 @@ export async function submitSingleVote(
     }
 
     console.log('[submitSingleVote] Vote inserted successfully:', insertedVote?.id)
+    console.log(`[submitSingleVote] Trigger should update entry ${entryId} score automatically`)
 
     // STEP D: Update voters table (mark as voted in phase)
     if (currentPhase === 1) {
