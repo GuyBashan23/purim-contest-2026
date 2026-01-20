@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
-import { submitSingleVote } from '@/app/actions/contest'
+import { submitSingleVote, getUserVotes } from '@/app/actions/contest'
 import { validateIsraeliPhone, normalizePhone } from '@/lib/utils'
 import { useContestPhase } from '@/lib/hooks/use-contest-phase'
 import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
@@ -45,8 +45,9 @@ export function CostumeGallery({
   const [voterPhone, setVoterPhone] = useState<string>('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [userVotes, setUserVotes] = useState<Record<string, number>>({}) // { entryId: points }
   const { toast } = useToast()
-  const { isVotingOpen } = useContestPhase()
+  const { isVotingOpen, phase: contestPhase } = useContestPhase()
   const { playSound } = useSoundEffects()
 
   // Load voter phone from localStorage on mount
@@ -59,6 +60,34 @@ export function CostumeGallery({
       }
     }
   }, [])
+
+  // Fetch user's current votes when authenticated and voting is open
+  useEffect(() => {
+    const fetchUserVotes = async () => {
+      if (isAuthenticated && isVotingOpen && voterPhone) {
+        const currentPhase = contestPhase === 'FINALS' ? 2 : 1
+        const result = await getUserVotes(normalizePhone(voterPhone), currentPhase)
+        if (result.votes) {
+          setUserVotes(result.votes)
+        }
+      }
+    }
+    fetchUserVotes()
+  }, [isAuthenticated, isVotingOpen, voterPhone, contestPhase])
+
+  // Refresh votes when modal opens
+  useEffect(() => {
+    if (selectedEntry && isAuthenticated && isVotingOpen) {
+      const fetchVotes = async () => {
+        const currentPhase = contestPhase === 'FINALS' ? 2 : 1
+        const result = await getUserVotes(normalizePhone(voterPhone), currentPhase)
+        if (result.votes) {
+          setUserVotes(result.votes)
+        }
+      }
+      fetchVotes()
+    }
+  }, [selectedEntry, isAuthenticated, isVotingOpen, voterPhone, contestPhase])
 
   useEffect(() => {
     fetchEntries()
@@ -153,6 +182,19 @@ export function CostumeGallery({
         return
       }
 
+      // Update local votes state
+      const currentPhase = contestPhase === 'FINALS' ? 2 : 1
+      const updatedVotes = { ...userVotes }
+      
+      // If vote was moved, remove it from previous entry
+      if (result.moved && result.previousEntryId) {
+        delete updatedVotes[result.previousEntryId]
+      }
+      
+      // Add new vote
+      updatedVotes[selectedEntry.id] = points
+      setUserVotes(updatedVotes)
+
       // Success! Play sound and show confetti
       if (points === 12) {
         playSound('douze-points')
@@ -174,10 +216,17 @@ export function CostumeGallery({
           : ['#94A3B8', '#CBD5E1', '#E2E8F0', '#F1F5F9'], // Silver/gray for 8 points
       })
 
+      const movedMessage = result.moved 
+        ? ' (הצבעה הועברה מתחפושת אחרת)' 
+        : ''
+      
       toast({
         title: 'תודה! 🎉',
-        description: `ניתנו ${points} נקודות${points === 12 ? ' - דוז פואה!' : ''}`,
+        description: `ניתנו ${points} נקודות${points === 12 ? ' - דוז פואה!' : ''}${movedMessage}`,
       })
+
+      // Refresh entries to show updated scores
+      fetchEntries()
 
       // Auto-close modal after 1 second
       setTimeout(() => {
@@ -193,6 +242,25 @@ export function CostumeGallery({
       })
       setIsSubmitting(false)
     }
+  }
+
+  // Check if user has given this point value to this entry
+  const getVoteStatus = (entryId: string, points: 8 | 10 | 12) => {
+    const currentVote = userVotes[entryId]
+    if (currentVote === points) {
+      return 'active' // User gave this exact point value to this entry
+    }
+    
+    // Check if user gave this point value to a different entry
+    const entryWithPoints = Object.entries(userVotes).find(([id, pts]) => 
+      id !== entryId && pts === points
+    )
+    
+    if (entryWithPoints) {
+      return 'used-elsewhere' // User gave this point value to another entry
+    }
+    
+    return 'available' // User hasn't used this point value yet
   }
 
   if (loading) {
@@ -377,48 +445,102 @@ export function CostumeGallery({
             )}
 
             {/* Eurovision Style Voting Buttons */}
-            {isVotingOpen && !readOnly && isAuthenticated && (
+            {isVotingOpen && !readOnly && isAuthenticated && selectedEntry && (
               <div className="space-y-3">
                 <div className="text-center mb-2">
                   <p className="text-white/90 font-semibold">בחר את מספר הנקודות:</p>
+                  <p className="text-white/70 text-sm mt-1">
+                    ניתן להעניק 8, 10 ו-12 נקודות פעם אחת בלבד
+                  </p>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {/* 8 Points - Silver/Gray */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleVote(8)}
-                    disabled={isSubmitting}
-                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px]"
-                  >
-                    <span className="text-3xl">🥉</span>
-                    <span>8 נקודות</span>
-                  </motion.button>
+                  {(() => {
+                    const status = getVoteStatus(selectedEntry.id, 8)
+                    return (
+                      <motion.button
+                        whileHover={{ scale: status !== 'used-elsewhere' ? 1.05 : 1 }}
+                        whileTap={{ scale: status !== 'used-elsewhere' ? 0.95 : 1 }}
+                        onClick={() => handleVote(8)}
+                        disabled={isSubmitting || status === 'used-elsewhere'}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px] relative ${
+                          status === 'active'
+                            ? 'bg-gradient-to-br from-gray-300 to-gray-500 ring-4 ring-white/50 shadow-2xl'
+                            : status === 'used-elsewhere'
+                            ? 'bg-gradient-to-br from-gray-600 to-gray-800 opacity-60'
+                            : 'bg-gradient-to-br from-gray-400 to-gray-600 hover:shadow-xl'
+                        }`}
+                      >
+                        <span className="text-3xl">🥉</span>
+                        <span>8 נקודות</span>
+                        {status === 'active' && (
+                          <span className="text-xs absolute bottom-1 opacity-90 font-normal">✓ נבחר</span>
+                        )}
+                        {status === 'used-elsewhere' && (
+                          <span className="text-xs absolute bottom-1 opacity-70 font-normal">בשימוש</span>
+                        )}
+                      </motion.button>
+                    )
+                  })()}
 
                   {/* 10 Points - Gold/Yellow */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleVote(10)}
-                    disabled={isSubmitting}
-                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px]"
-                  >
-                    <span className="text-3xl">🥈</span>
-                    <span>10 נקודות</span>
-                  </motion.button>
+                  {(() => {
+                    const status = getVoteStatus(selectedEntry.id, 10)
+                    return (
+                      <motion.button
+                        whileHover={{ scale: status !== 'used-elsewhere' ? 1.05 : 1 }}
+                        whileTap={{ scale: status !== 'used-elsewhere' ? 0.95 : 1 }}
+                        onClick={() => handleVote(10)}
+                        disabled={isSubmitting || status === 'used-elsewhere'}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px] relative ${
+                          status === 'active'
+                            ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 ring-4 ring-white/50 shadow-2xl'
+                            : status === 'used-elsewhere'
+                            ? 'bg-gradient-to-br from-yellow-600 to-yellow-800 opacity-60'
+                            : 'bg-gradient-to-br from-yellow-400 to-yellow-600 hover:shadow-xl'
+                        }`}
+                      >
+                        <span className="text-3xl">🥈</span>
+                        <span>10 נקודות</span>
+                        {status === 'active' && (
+                          <span className="text-xs absolute bottom-1 opacity-90 font-normal">✓ נבחר</span>
+                        )}
+                        {status === 'used-elsewhere' && (
+                          <span className="text-xs absolute bottom-1 opacity-70 font-normal">בשימוש</span>
+                        )}
+                      </motion.button>
+                    )
+                  })()}
 
                   {/* 12 Points - Purple/Neon */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleVote(12)}
-                    disabled={isSubmitting}
-                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px] relative overflow-hidden"
-                  >
-                    <span className="text-3xl">🥇</span>
-                    <span>12 נקודות</span>
-                    <span className="text-xs absolute bottom-1 opacity-80">דוז פואה!</span>
-                  </motion.button>
+                  {(() => {
+                    const status = getVoteStatus(selectedEntry.id, 12)
+                    return (
+                      <motion.button
+                        whileHover={{ scale: status !== 'used-elsewhere' ? 1.05 : 1 }}
+                        whileTap={{ scale: status !== 'used-elsewhere' ? 0.95 : 1 }}
+                        onClick={() => handleVote(12)}
+                        disabled={isSubmitting || status === 'used-elsewhere'}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px] relative overflow-hidden ${
+                          status === 'active'
+                            ? 'bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 ring-4 ring-white/50 shadow-2xl'
+                            : status === 'used-elsewhere'
+                            ? 'bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900 opacity-60'
+                            : 'bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 hover:shadow-xl'
+                        }`}
+                      >
+                        <span className="text-3xl">🥇</span>
+                        <span>12 נקודות</span>
+                        <span className="text-xs absolute bottom-1 opacity-80">דוז פואה!</span>
+                        {status === 'active' && (
+                          <span className="text-xs absolute bottom-6 opacity-90 font-normal">✓ נבחר</span>
+                        )}
+                        {status === 'used-elsewhere' && (
+                          <span className="text-xs absolute bottom-6 opacity-70 font-normal">בשימוש</span>
+                        )}
+                      </motion.button>
+                    )
+                  })()}
                 </div>
               </div>
             )}

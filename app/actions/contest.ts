@@ -417,7 +417,7 @@ export async function checkVoterEligibility(phone: string, phase: 1 | 2) {
   }
 }
 
-// Simplified single vote submission for Eurovision-style voting
+// Simplified single vote submission for Eurovision-style voting with "move" logic
 export async function submitSingleVote(
   voterPhone: string,
   entryId: string,
@@ -473,34 +473,54 @@ export async function submitSingleVote(
   // Determine phase (1 for VOTING, 2 for FINALS)
   const currentPhase = appSettings?.current_phase === 'FINALS' ? 2 : 1
 
-  // SECURITY CHECK 5: Check if already voted for this specific entry in this phase
-  // Note: This allows voting for multiple entries, but prevents duplicate votes for the same entry
-  const { data: existingVote } = await supabase
+  // EUROVISION LOGIC: Check if user already gave this point value to another entry
+  // If yes, we need to "move" the vote (delete old, insert new)
+  const { data: existingVoteForPoints, error: checkError } = await supabase
     .from('votes')
-    .select('id')
+    .select('id, entry_id')
     .eq('voter_phone', voterPhone)
-    .eq('entry_id', entryId)
+    .eq('points', points)
     .eq('phase', currentPhase)
     .single()
 
-  if (existingVote) {
-    return { error: 'כבר הצבעת עבור תחפושת זו' }
+  if (checkError && checkError.code !== 'PGRST116') {
+    // PGRST116 = no rows returned (expected if no vote exists)
+    return { error: 'שגיאה בבדיקת הצבעות קיימות' }
   }
 
-  // All security checks passed - insert vote
-  const { error } = await supabase.from('votes').insert({
+  // Use transaction-like logic: delete old vote first, then insert new one
+  // This ensures the unique constraint (voter_phone, points, phase) is maintained
+  if (existingVoteForPoints) {
+    // Check if trying to vote for the same entry with same points (no-op)
+    if (existingVoteForPoints.entry_id === entryId) {
+      return { success: true, moved: false } // Already voted for this entry with these points
+    }
+
+    // Delete the old vote (this will trigger score update for old entry)
+    const { error: deleteError } = await supabase
+      .from('votes')
+      .delete()
+      .eq('id', existingVoteForPoints.id)
+
+    if (deleteError) {
+      return { error: 'שגיאה בהסרת הצבעה קודמת' }
+    }
+  }
+
+  // Insert the new vote (this will trigger score update for new entry)
+  const { error: insertError } = await supabase.from('votes').insert({
     voter_phone: voterPhone,
     entry_id: entryId,
     points: points,
     phase: currentPhase,
   })
 
-  if (error) {
-    // Handle unique constraint violation (race condition)
-    if (error.code === '23505' || error.message?.includes('unique')) {
-      return { error: 'כבר הצבעת עבור תחפושת זו' }
+  if (insertError) {
+    // Handle unique constraint violation (shouldn't happen, but just in case)
+    if (insertError.code === '23505' || insertError.message?.includes('unique')) {
+      return { error: 'כבר הצבעת עם נקודות אלו' }
     }
-    return { error: error.message }
+    return { error: insertError.message }
   }
 
   // Update voters table (mark as voted in phase)
@@ -516,7 +536,35 @@ export async function submitSingleVote(
 
   revalidatePath('/gallery')
   revalidatePath('/live')
-  return { success: true }
+  return { 
+    success: true, 
+    moved: !!existingVoteForPoints,
+    previousEntryId: existingVoteForPoints?.entry_id 
+  }
+}
+
+// Get user's current votes for a specific phase (for UI display)
+export async function getUserVotes(voterPhone: string, phase: 1 | 2) {
+  const supabase = await createServerSupabase()
+
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('entry_id, points')
+    .eq('voter_phone', voterPhone)
+    .eq('phase', phase)
+    .in('points', [8, 10, 12])
+
+  if (error) {
+    return { error: error.message, votes: [] }
+  }
+
+  // Return a map: { entryId: points } for easy lookup
+  const voteMap: Record<string, number> = {}
+  votes?.forEach((vote) => {
+    voteMap[vote.entry_id] = vote.points
+  })
+
+  return { votes: voteMap }
 }
 
 // New app_settings management functions
