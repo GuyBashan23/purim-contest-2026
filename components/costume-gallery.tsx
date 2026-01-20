@@ -94,7 +94,7 @@ export function CostumeGallery({
 
     // Subscribe to real-time updates for entries (score changes)
     const entriesChannel = supabase
-      .channel('entries_changes')
+      .channel('entries_changes_gallery')
       .on(
         'postgres_changes',
         {
@@ -106,19 +106,28 @@ export function CostumeGallery({
           console.log('📊 Entry score updated via realtime:', payload)
           // Update the specific entry in local state
           if (payload.new && payload.new.id) {
-            setEntries((prevEntries) =>
-              prevEntries.map((entry) =>
+            const newScore = payload.new.total_score || 0
+            console.log(`[Realtime] Updating entry ${payload.new.id} score to ${newScore}`)
+            
+            setEntries((prevEntries) => {
+              const updated = prevEntries.map((entry) =>
                 entry.id === payload.new.id
-                  ? { ...entry, total_score: payload.new.total_score }
+                  ? { ...entry, total_score: newScore }
                   : entry
               )
-            )
+              console.log('[Realtime] Updated entries:', updated.find(e => e.id === payload.new.id))
+              return updated
+            })
+            
             // Also update selectedEntry if it's the same entry
-            setSelectedEntry((prev) =>
-              prev && prev.id === payload.new.id
-                ? { ...prev, total_score: payload.new.total_score }
-                : prev
-            )
+            setSelectedEntry((prev) => {
+              if (prev && prev.id === payload.new.id) {
+                const updated = { ...prev, total_score: newScore }
+                console.log('[Realtime] Updated selectedEntry:', updated)
+                return updated
+              }
+              return prev
+            })
           }
         }
       )
@@ -130,10 +139,17 @@ export function CostumeGallery({
           table: 'entries',
         },
         () => {
+          console.log('📥 New entry inserted, refreshing...')
           fetchEntries()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to entries realtime updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription error - check Supabase Realtime is enabled')
+        }
+      })
 
     return () => {
       entriesChannel.unsubscribe()
@@ -142,6 +158,7 @@ export function CostumeGallery({
 
   const fetchEntries = async () => {
     try {
+      console.log('[fetchEntries] Fetching entries with scores...')
       // Only select required fields (not SELECT *)
       // Limit initial load to 20 entries for better performance
       const { data, error } = await supabase
@@ -150,12 +167,19 @@ export function CostumeGallery({
         .order('created_at', { ascending: false })
         .limit(20) // Limit initial load to 20 entries for performance
 
-      if (error) throw error
+      if (error) {
+        console.error('[fetchEntries] Error:', error)
+        throw error
+      }
+      
       // Filter out entries with invalid image URLs
       const validEntries = (data || []).filter((entry) => entry.image_url && entry.image_url.trim() !== '')
+      console.log(`[fetchEntries] Loaded ${validEntries.length} entries with scores:`, 
+        validEntries.map(e => ({ id: e.id, score: e.total_score }))
+      )
       setEntries(validEntries)
     } catch (error) {
-      console.error('Error fetching entries:', error)
+      console.error('[fetchEntries] Error fetching entries:', error)
     } finally {
       setLoading(false)
     }
@@ -217,13 +241,17 @@ export function CostumeGallery({
       if (result.moved && result.previousEntryId) {
         delete updatedVotes[result.previousEntryId]
         // Update the previous entry's score (subtract the points)
-        setEntries((prevEntries) =>
-          prevEntries.map((entry) =>
-            entry.id === result.previousEntryId
-              ? { ...entry, total_score: Math.max(0, entry.total_score - points) }
-              : entry
-          )
-        )
+        setEntries((prevEntries) => {
+          const updated = prevEntries.map((entry) => {
+            if (entry.id === result.previousEntryId) {
+              const newScore = Math.max(0, (entry.total_score || 0) - points)
+              console.log(`[handleVote] Moving vote: Entry ${entry.id} score ${entry.total_score} -> ${newScore}`)
+              return { ...entry, total_score: newScore }
+            }
+            return entry
+          })
+          return updated
+        })
       }
       
       // Add new vote
@@ -263,30 +291,41 @@ export function CostumeGallery({
       // Optimistically update the selected entry's score in local state immediately
       // This gives instant feedback while the database trigger updates the actual score
       if (selectedEntry) {
-        const newScore = selectedEntry.total_score + points
+        // Calculate new score: current score + points
+        // If vote was moved, we already subtracted from previous entry
+        const currentScore = selectedEntry.total_score || 0
+        const newScore = currentScore + points
         
-        // Update in entries list
-        setEntries((prevEntries) =>
-          prevEntries.map((entry) =>
+        console.log(`[handleVote] Updating score for entry ${selectedEntry.id}: ${currentScore} + ${points} = ${newScore}`)
+        
+        // Update in entries list immediately
+        setEntries((prevEntries) => {
+          const updated = prevEntries.map((entry) =>
             entry.id === selectedEntry.id
               ? { ...entry, total_score: newScore }
               : entry
           )
-        )
+          console.log('[handleVote] Updated entries list:', updated.find(e => e.id === selectedEntry.id))
+          return updated
+        })
         
         // Update selectedEntry if it's still open
-        setSelectedEntry((prev) =>
-          prev && prev.id === selectedEntry.id
-            ? { ...prev, total_score: newScore }
-            : prev
-        )
+        setSelectedEntry((prev) => {
+          if (prev && prev.id === selectedEntry.id) {
+            const updated = { ...prev, total_score: newScore }
+            console.log('[handleVote] Updated selectedEntry:', updated)
+            return updated
+          }
+          return prev
+        })
       }
       
-      // Refresh entries after a short delay to get the actual score from DB
-      // The realtime subscription should also update it, but this is a backup
+      // Force refresh entries after a short delay to sync with DB
+      // This ensures we get the actual calculated score from the database trigger
       setTimeout(async () => {
+        console.log('[handleVote] Refreshing entries from DB...')
         await fetchEntries()
-      }, 500)
+      }, 800)
 
       // Auto-close modal after 1 second
       setTimeout(() => {
@@ -392,9 +431,15 @@ export function CostumeGallery({
                   
                   {/* Score badge */}
                   {showScores && (
-                    <div className="absolute top-4 left-4 glass px-4 py-2 rounded-full text-white text-sm font-bold backdrop-blur-md">
-                      {entry.total_score} נקודות
-                    </div>
+                    <motion.div 
+                      className="absolute top-4 left-4 glass px-4 py-2 rounded-full text-white text-sm font-bold backdrop-blur-md"
+                      key={`score-${entry.id}-${entry.total_score}`}
+                      initial={{ scale: 1 }}
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {entry.total_score || 0} נקודות
+                    </motion.div>
                   )}
                   
                   {/* Selected indicator */}
