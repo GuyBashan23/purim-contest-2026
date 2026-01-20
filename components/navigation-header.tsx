@@ -75,7 +75,7 @@ export function NavigationHeader({ title, showHome = true }: NavigationHeaderPro
               </motion.button>
             </Link>
           ) : (
-            <div className="w-14" /> {/* Spacer for alignment */}
+            <div className="w-14"></div>
           )}
         </div>
       </motion.div>

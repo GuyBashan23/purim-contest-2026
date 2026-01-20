@@ -62,15 +62,16 @@ export function CountdownTimer({
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
       const seconds = Math.floor((difference % (1000 * 60)) / 1000)
 
+      const newTimeLeft = { days, hours, minutes, seconds }
       setPrevValues(timeLeft)
-      setTimeLeft({ days, hours, minutes, seconds })
+      setTimeLeft(newTimeLeft)
     }
 
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
 
     return () => clearInterval(interval)
-  }, [targetTime, onComplete, timeLeft])
+  }, [targetTime, onComplete])
 
   if (!targetTime || !timeLeft) {
     return null
