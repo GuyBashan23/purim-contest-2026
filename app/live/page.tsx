@@ -166,31 +166,49 @@ export default function LivePage() {
             event: 'INSERT',
             schema: 'public',
             table: 'entries',
+            filter: '*',
           },
           (payload) => {
-            console.log('📥 INSERT event received:', payload)
-            console.log('📦 Payload data:', JSON.stringify(payload, null, 2))
+            console.log('📥 INSERT event received!')
+            console.log('📦 Full payload:', payload)
+            console.log('📦 Payload.new:', payload.new)
+            console.log('📦 Payload type:', typeof payload.new)
             
-            const newEntry = payload.new as Entry
-            
-            if (!newEntry) {
-              console.error('❌ No new entry data in payload:', payload)
-              return
+            try {
+              const newEntry = payload.new as any
+              
+              if (!newEntry) {
+                console.error('❌ No new entry data in payload:', payload)
+                return
+              }
+              
+              // Create Entry object with all required fields
+              const entry: Entry = {
+                id: newEntry.id || newEntry.ID || '',
+                name: newEntry.name || newEntry.NAME || 'ללא שם',
+                costume_title: newEntry.costume_title || newEntry.COSTUME_TITLE || newEntry.costumeTitle || 'ללא כותרת',
+                image_url: newEntry.image_url || newEntry.IMAGE_URL || newEntry.imageUrl || '',
+              }
+              
+              // Validate required fields
+              if (!entry.id) {
+                console.error('❌ Entry missing id:', newEntry)
+                console.error('❌ Full payload structure:', JSON.stringify(payload, null, 2))
+                return
+              }
+              
+              if (!entry.image_url) {
+                console.error('❌ Entry missing image_url:', newEntry)
+                console.error('❌ Available fields:', Object.keys(newEntry))
+                return
+              }
+              
+              console.log('✅ Valid entry created:', entry)
+              handleNewEntry(entry)
+            } catch (error) {
+              console.error('❌ Error processing INSERT event:', error)
+              console.error('❌ Payload that caused error:', payload)
             }
-            
-            // Validate required fields
-            if (!newEntry.id) {
-              console.error('❌ Entry missing id:', newEntry)
-              return
-            }
-            
-            if (!newEntry.image_url) {
-              console.error('❌ Entry missing image_url:', newEntry)
-              return
-            }
-            
-            console.log('✅ Valid entry received, processing...')
-            handleNewEntry(newEntry)
           }
         )
         .on(
@@ -205,21 +223,32 @@ export default function LivePage() {
             loadSettings()
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           console.log('📡 Subscription status:', status)
+          if (err) {
+            console.error('❌ Subscription error:', err)
+          }
+          
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to real-time updates!')
             console.log('👂 Listening for new entries on entries table...')
+            console.log('📋 Channel info:', channel)
+            
+            // Test: Try to manually trigger a test
+            console.log('🧪 Testing subscription - try uploading a photo now')
           } else if (status === 'CHANNEL_ERROR') {
             console.error('❌ Channel error - check Supabase Realtime is enabled')
             console.error('📖 Enable Realtime in Supabase Dashboard:')
             console.error('   1. Go to Database → Replication')
             console.error('   2. Find "entries" table')
             console.error('   3. Toggle "Enable Realtime" ON')
+            console.error('   4. Or run the SQL script: enable_realtime.sql')
           } else if (status === 'TIMED_OUT') {
             console.error('⏱️ Subscription timed out - check network connection')
           } else if (status === 'CLOSED') {
             console.warn('🔒 Channel closed')
+          } else if (status === 'SUBSCRIBE_FAILED') {
+            console.error('❌ Subscription failed:', err)
           }
         })
     }
