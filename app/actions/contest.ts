@@ -479,14 +479,23 @@ export async function setAppPhase(phase: AppPhase, password: string) {
 
     if (!settingsData) {
       // Create if doesn't exist
-      const { error: insertError } = await supabase
+      console.log('[setAppPhase] Creating new app_settings row...')
+      const { error: insertError, data: insertData } = await supabase
         .from('app_settings')
         .insert({ current_phase: phase, voting_start_time: phase === 'VOTING' ? now : null })
+        .select()
       
       if (insertError) {
-        console.error('Error inserting app_settings:', insertError)
-        return { error: `שגיאה ביצירת הגדרות אפליקציה: ${insertError.message}` }
+        console.error('[setAppPhase] Error inserting app_settings:', {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint
+        })
+        return { error: `שגיאה ביצירת הגדרות אפליקציה: ${insertError.message} (Code: ${insertError.code || 'N/A'})` }
       }
+      
+      console.log('[setAppPhase] Successfully created app_settings:', insertData)
     } else {
       console.log('[setAppPhase] Updating app_settings with id:', settingsData.id, 'updates:', updates)
       const { error: updateError, data: updateData } = await supabase
