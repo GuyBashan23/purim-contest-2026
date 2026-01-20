@@ -55,7 +55,7 @@ CREATE OR REPLACE FUNCTION update_entry_score()
 RETURNS TRIGGER AS $$
 DECLARE
   affected_entry_ids UUID[];
-  entry_id UUID;
+  affected_entry_id UUID;
 BEGIN
   -- Collect all affected entry IDs (both old and new)
   affected_entry_ids := ARRAY[]::UUID[];
@@ -82,15 +82,15 @@ BEGIN
   END IF;
   
   -- Update scores for all affected entries
-  FOREACH entry_id IN ARRAY affected_entry_ids
+  FOREACH affected_entry_id IN ARRAY affected_entry_ids
   LOOP
     UPDATE entries
     SET total_score = (
       SELECT COALESCE(SUM(points), 0)
       FROM votes
-      WHERE entry_id = entry_id
+      WHERE votes.entry_id = affected_entry_id
     )
-    WHERE id = entry_id;
+    WHERE entries.id = affected_entry_id;
   END LOOP;
   
   -- Return appropriate value
