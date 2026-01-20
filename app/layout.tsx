@@ -23,9 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} dark`}>
-      <body className={`${heebo.className} antialiased min-h-[100dvh] bg-gradient-to-br from-purple-900 via-red-900 to-purple-800 text-white`}>
+      <body className={`${heebo.className} antialiased`} style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)', color: 'white', minHeight: '100dvh' }}>
         <ErrorBoundary>
-          <div className="min-h-[100dvh] w-full flex items-center justify-center p-4 bg-gradient-to-br from-purple-900 via-red-900 to-purple-800">
+          <div className="min-h-[100dvh] w-full flex items-center justify-center p-4" style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)' }}>
             <div className="w-full max-w-md mx-auto relative z-10">
               {children}
             </div>
