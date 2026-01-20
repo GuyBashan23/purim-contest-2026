@@ -141,20 +141,23 @@ export default function LivePage() {
     }
   }, [getFirstName, updateCurrentBatch])
 
-  // Fetch entries and set up real-time subscription
+  // Fetch entries and set up real-time subscription with polling fallback
   useEffect(() => {
     let channel: RealtimeChannel | null = null
+    let pollingInterval: NodeJS.Timeout | null = null
+    let lastEntryCount = 0
     
     const setupSubscription = async () => {
       // First, fetch initial entries
-      await fetchEntries()
+      const initialData = await fetchEntries()
+      lastEntryCount = entries.length || 0
 
       // Subscribe to real-time updates
       console.log('🔌 Setting up real-time subscription...')
       console.log('📋 Ensuring Realtime is enabled on entries table in Supabase Dashboard')
       
       channel = supabase
-        .channel('live_wall_entries', {
+        .channel('live_wall_entries_' + Date.now(), {
           config: {
             broadcast: { self: false },
             presence: { key: '' }
@@ -166,13 +169,11 @@ export default function LivePage() {
             event: 'INSERT',
             schema: 'public',
             table: 'entries',
-            filter: '*',
           },
           (payload) => {
             console.log('📥 INSERT event received!')
             console.log('📦 Full payload:', payload)
             console.log('📦 Payload.new:', payload.new)
-            console.log('📦 Payload type:', typeof payload.new)
             
             try {
               const newEntry = payload.new as any
@@ -205,6 +206,7 @@ export default function LivePage() {
               
               console.log('✅ Valid entry created:', entry)
               handleNewEntry(entry)
+              lastEntryCount = entries.length + 1
             } catch (error) {
               console.error('❌ Error processing INSERT event:', error)
               console.error('❌ Payload that caused error:', payload)
@@ -232,10 +234,39 @@ export default function LivePage() {
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to real-time updates!')
             console.log('👂 Listening for new entries on entries table...')
-            console.log('📋 Channel info:', channel)
             
-            // Test: Try to manually trigger a test
-            console.log('🧪 Testing subscription - try uploading a photo now')
+            // Set up polling fallback (check every 3 seconds for new entries)
+            pollingInterval = setInterval(async () => {
+              try {
+                const { data, error } = await supabase
+                  .from('entries')
+                  .select('id, name, costume_title, image_url')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                
+                if (error) {
+                  console.error('❌ Polling error:', error)
+                  return
+                }
+                
+                if (data && data.length > 0) {
+                  const latestEntry = data[0]
+                  const currentCount = entries.length
+                  
+                  // Check if this is a new entry we haven't seen
+                  const exists = entries.some(e => e.id === latestEntry.id)
+                  
+                  if (!exists && latestEntry.image_url) {
+                    console.log('🔄 Polling detected new entry:', latestEntry)
+                    handleNewEntry(latestEntry as Entry)
+                  }
+                }
+              } catch (pollError) {
+                console.error('❌ Polling check error:', pollError)
+              }
+            }, 3000)
+            
+            console.log('🔄 Polling fallback enabled (checks every 3 seconds)')
           } else if (status === 'CHANNEL_ERROR') {
             console.error('❌ Channel error - check Supabase Realtime is enabled')
             console.error('📖 Enable Realtime in Supabase Dashboard:')
@@ -243,12 +274,26 @@ export default function LivePage() {
             console.error('   2. Find "entries" table')
             console.error('   3. Toggle "Enable Realtime" ON')
             console.error('   4. Or run the SQL script: enable_realtime.sql')
+            
+            // Enable polling immediately if Realtime fails
+            pollingInterval = setInterval(async () => {
+              await fetchEntries()
+            }, 3000)
           } else if (status === 'TIMED_OUT') {
-            console.error('⏱️ Subscription timed out - check network connection')
+            console.error('⏱️ Subscription timed out - enabling polling fallback')
+            pollingInterval = setInterval(async () => {
+              await fetchEntries()
+            }, 3000)
           } else if (status === 'CLOSED') {
-            console.warn('🔒 Channel closed')
+            console.warn('🔒 Channel closed - enabling polling fallback')
+            pollingInterval = setInterval(async () => {
+              await fetchEntries()
+            }, 3000)
           } else if (status === 'SUBSCRIBE_FAILED') {
-            console.error('❌ Subscription failed:', err)
+            console.error('❌ Subscription failed - enabling polling fallback')
+            pollingInterval = setInterval(async () => {
+              await fetchEntries()
+            }, 3000)
           }
         })
     }
@@ -260,8 +305,12 @@ export default function LivePage() {
         console.log('🔌 Unsubscribing from real-time updates')
         channel.unsubscribe()
       }
+      if (pollingInterval) {
+        console.log('🔄 Clearing polling interval')
+        clearInterval(pollingInterval)
+      }
     }
-  }, [handleNewEntry])
+  }, [handleNewEntry, entries.length])
 
   const fetchEntries = async () => {
     try {
@@ -281,6 +330,22 @@ export default function LivePage() {
       )
 
       console.log(`✅ Fetched ${validEntries.length} valid entries`)
+      
+      // Check if there are new entries
+      const previousCount = entries.length
+      if (validEntries.length > previousCount) {
+        const newEntries = validEntries.slice(0, validEntries.length - previousCount)
+        console.log(`🆕 Found ${newEntries.length} new entries via polling`)
+        
+        // Process new entries (oldest first to maintain order)
+        for (const newEntry of newEntries.reverse()) {
+          if (!entries.some(e => e.id === newEntry.id)) {
+            console.log('🔄 Processing new entry from polling:', newEntry)
+            handleNewEntry(newEntry as Entry)
+          }
+        }
+      }
+      
       setEntries(validEntries)
       setTotalCount(validEntries.length)
 
