@@ -140,11 +140,18 @@ export default function LivePage() {
     }
   }
 
+  const getFirstName = (fullName: string): string => {
+    if (!fullName) return ''
+    // Extract first name (before first space)
+    const firstName = fullName.trim().split(/\s+/)[0]
+    return firstName || fullName
+  }
+
   const handleNewEntry = (newEntry: Entry) => {
     console.log('🎉 New entry received:', newEntry)
     
     // Validate entry has required fields
-    if (!newEntry || !newEntry.name || !newEntry.image_url) {
+    if (!newEntry || !newEntry.image_url) {
       console.warn('⚠️ Invalid entry data:', newEntry)
       return
     }
@@ -158,8 +165,10 @@ export default function LivePage() {
     })
 
     // Show toast notification
-    console.log('🔔 Showing toast for:', newEntry.name)
-    setNewUploadToast({ show: true, name: newEntry.name })
+    const firstName = newEntry.name ? getFirstName(newEntry.name) : ''
+    const displayName = firstName || 'מישהו'
+    console.log('🔔 Showing toast for:', displayName)
+    setNewUploadToast({ show: true, name: displayName })
     
     // Clear toast after 5 seconds
     setTimeout(() => {
@@ -286,41 +295,68 @@ export default function LivePage() {
         </motion.div>
       </motion.div>
 
-      {/* New Upload Toast Overlay */}
-      <AnimatePresence mode="wait">
-        {newUploadToast.show && newUploadToast.name && (
+      {/* New Upload Toast Notification - Top Center */}
+      <AnimatePresence>
+        {newUploadToast.show && (
           <motion.div
             key="toast"
-            initial={{ opacity: 0, y: -100, scale: 0.8 }}
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -100, scale: 0.8 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none"
+            exit={{ opacity: 0, y: -30, scale: 0.95 }}
+            transition={{ 
+              type: 'spring', 
+              stiffness: 400, 
+              damping: 25,
+              duration: 0.3
+            }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] pointer-events-none"
             style={{ position: 'fixed' }}
           >
             <div
-              className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-6 sm:p-8 md:p-10 lg:p-12 xl:p-14 2xl:p-16 rounded-2xl sm:rounded-3xl lg:rounded-4xl shadow-2xl border-2 sm:border-3 md:border-4 border-white/30"
+              className="glass backdrop-blur-xl bg-black/40 border-2 border-purple-400/60 rounded-2xl px-6 py-4 md:px-8 md:py-5 lg:px-10 lg:py-6 shadow-2xl"
               style={{
                 boxShadow:
-                  '0 0 80px rgba(168, 85, 247, 0.8), 0 0 160px rgba(236, 72, 153, 0.6), inset 0 0 40px rgba(255, 255, 255, 0.2)',
+                  '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(168, 85, 247, 0.5), 0 0 40px rgba(236, 72, 153, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                animation: 'glow-pulse 2s ease-in-out infinite',
               }}
             >
               <motion.div
-                animate={{
-                  scale: [1, 1.1, 1],
+                initial={{ scale: 1 }}
+                animate={{ 
+                  scale: [1, 1.02, 1],
                 }}
                 transition={{
-                  duration: 0.6,
+                  duration: 2,
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }}
-                className="text-center"
+                className="flex items-center gap-3 md:gap-4"
               >
-                <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-black text-white mb-4 drop-shadow-2xl">
-                  {newUploadToast.name} העלה תחפושת!
-                </p>
-                <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold text-yellow-300 drop-shadow-xl">
-                  בהצלחה! 🎭
+                {/* Icon */}
+                <motion.div
+                  animate={{ 
+                    rotate: [0, 10, -10, 0],
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    repeat: Infinity,
+                    repeatDelay: 2,
+                  }}
+                  className="text-2xl md:text-3xl lg:text-4xl"
+                >
+                  🎭
+                </motion.div>
+                
+                {/* Text */}
+                <p className="text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-white drop-shadow-lg whitespace-nowrap">
+                  {newUploadToast.name === 'מישהו' ? (
+                    <span className="text-white/90">מישהו העלה תמונה חדשה!</span>
+                  ) : (
+                    <>
+                      <span className="text-purple-300">{newUploadToast.name}</span>
+                      <span className="text-white/90"> העלה תמונה לתחרות!</span>
+                    </>
+                  )}
                 </p>
               </motion.div>
             </div>
@@ -455,6 +491,22 @@ export default function LivePage() {
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
+        }
+        
+        /* Glow pulse animation for toast */
+        @keyframes glow-pulse {
+          0%, 100% {
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
+                        0 0 20px rgba(168, 85, 247, 0.5), 
+                        0 0 40px rgba(236, 72, 153, 0.3), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          }
+          50% {
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
+                        0 0 30px rgba(168, 85, 247, 0.7), 
+                        0 0 60px rgba(236, 72, 153, 0.5), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          }
         }
       `}</style>
     </div>
