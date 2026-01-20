@@ -92,13 +92,40 @@ export function CostumeGallery({
   useEffect(() => {
     fetchEntries()
 
-    // Subscribe to real-time updates
-    const channel = supabase
+    // Subscribe to real-time updates for entries (score changes)
+    const entriesChannel = supabase
       .channel('entries_changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'entries',
+        },
+        (payload) => {
+          console.log('📊 Entry score updated via realtime:', payload)
+          // Update the specific entry in local state
+          if (payload.new && payload.new.id) {
+            setEntries((prevEntries) =>
+              prevEntries.map((entry) =>
+                entry.id === payload.new.id
+                  ? { ...entry, total_score: payload.new.total_score }
+                  : entry
+              )
+            )
+            // Also update selectedEntry if it's the same entry
+            setSelectedEntry((prev) =>
+              prev && prev.id === payload.new.id
+                ? { ...prev, total_score: payload.new.total_score }
+                : prev
+            )
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
           schema: 'public',
           table: 'entries',
         },
@@ -109,7 +136,7 @@ export function CostumeGallery({
       .subscribe()
 
     return () => {
-      channel.unsubscribe()
+      entriesChannel.unsubscribe()
     }
   }, [])
 
@@ -186,9 +213,17 @@ export function CostumeGallery({
       const currentPhase = contestPhase === 'FINALS' ? 2 : 1
       const updatedVotes = { ...userVotes }
       
-      // If vote was moved, remove it from previous entry
+      // If vote was moved, remove it from previous entry and update its score
       if (result.moved && result.previousEntryId) {
         delete updatedVotes[result.previousEntryId]
+        // Update the previous entry's score (subtract the points)
+        setEntries((prevEntries) =>
+          prevEntries.map((entry) =>
+            entry.id === result.previousEntryId
+              ? { ...entry, total_score: Math.max(0, entry.total_score - points) }
+              : entry
+          )
+        )
       }
       
       // Add new vote
@@ -225,8 +260,33 @@ export function CostumeGallery({
         description: `ניתנו ${points} נקודות${points === 12 ? ' - דוז פואה!' : ''}${movedMessage}`,
       })
 
-      // Refresh entries to show updated scores
-      fetchEntries()
+      // Optimistically update the selected entry's score in local state immediately
+      // This gives instant feedback while the database trigger updates the actual score
+      if (selectedEntry) {
+        const newScore = selectedEntry.total_score + points
+        
+        // Update in entries list
+        setEntries((prevEntries) =>
+          prevEntries.map((entry) =>
+            entry.id === selectedEntry.id
+              ? { ...entry, total_score: newScore }
+              : entry
+          )
+        )
+        
+        // Update selectedEntry if it's still open
+        setSelectedEntry((prev) =>
+          prev && prev.id === selectedEntry.id
+            ? { ...prev, total_score: newScore }
+            : prev
+        )
+      }
+      
+      // Refresh entries after a short delay to get the actual score from DB
+      // The realtime subscription should also update it, but this is a backup
+      setTimeout(async () => {
+        await fetchEntries()
+      }, 500)
 
       // Auto-close modal after 1 second
       setTimeout(() => {
