@@ -99,3 +99,4 @@ npm run dev
 - One vote per phase per phone number
 - Images are stored in Supabase Storage
 - Real-time updates use Supabase Realtime subscriptions
+# purim-contest-2026
