@@ -4,9 +4,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useToast } from '@/components/ui/use-toast'
+import { submitSingleVote } from '@/app/actions/contest'
+import { validateIsraeliPhone, normalizePhone } from '@/lib/utils'
+import { useContestPhase } from '@/lib/hooks/use-contest-phase'
+import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
 
 export interface Entry {
   id: string
@@ -34,6 +42,23 @@ export function CostumeGallery({
   const [loading, setLoading] = useState(true)
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
+  const [voterPhone, setVoterPhone] = useState<string>('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
+  const { isVotingOpen } = useContestPhase()
+  const { playSound } = useSoundEffects()
+
+  // Load voter phone from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedPhone = localStorage.getItem('voterPhone')
+      if (savedPhone && validateIsraeliPhone(savedPhone)) {
+        setVoterPhone(savedPhone)
+        setIsAuthenticated(true)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     fetchEntries()
@@ -91,6 +116,82 @@ export function CostumeGallery({
       onSelect(entry)
     } else {
       setSelectedEntry(entry)
+    }
+  }
+
+  const handlePhoneSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validateIsraeliPhone(voterPhone)) {
+      toast({
+        title: 'שגיאה',
+        description: 'מספר טלפון לא תקין',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const normalizedPhone = normalizePhone(voterPhone)
+    localStorage.setItem('voterPhone', normalizedPhone)
+    setIsAuthenticated(true)
+  }
+
+  const handleVote = async (points: 8 | 10 | 12) => {
+    if (!selectedEntry || isSubmitting || !isAuthenticated) return
+
+    setIsSubmitting(true)
+    try {
+      const normalizedPhone = normalizePhone(voterPhone)
+      const result = await submitSingleVote(normalizedPhone, selectedEntry.id, points)
+
+      if (result?.error) {
+        toast({
+          title: 'שגיאה',
+          description: result.error,
+          variant: 'destructive',
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      // Success! Play sound and show confetti
+      if (points === 12) {
+        playSound('douze-points')
+      } else {
+        playSound('confetti')
+      }
+
+      // Confetti explosion
+      const confettiModule = await import('canvas-confetti')
+      const confetti = confettiModule.default
+      confetti({
+        particleCount: 200,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: points === 12 
+          ? ['#9333EA', '#A855F7', '#C084FC', '#E9D5FF'] // Purple/neon for 12 points
+          : points === 10
+          ? ['#FCD34D', '#FDE047', '#FEF3C7', '#FFFBEB'] // Gold for 10 points
+          : ['#94A3B8', '#CBD5E1', '#E2E8F0', '#F1F5F9'], // Silver/gray for 8 points
+      })
+
+      toast({
+        title: 'תודה! 🎉',
+        description: `ניתנו ${points} נקודות${points === 12 ? ' - דוז פואה!' : ''}`,
+      })
+
+      // Auto-close modal after 1 second
+      setTimeout(() => {
+        setSelectedEntry(null)
+        setIsSubmitting(false)
+      }, 1000)
+    } catch (error) {
+      console.error('Vote error:', error)
+      toast({
+        title: 'שגיאה',
+        description: 'שגיאה בהצבעה. נסה שוב.',
+        variant: 'destructive',
+      })
+      setIsSubmitting(false)
     }
   }
 
@@ -197,13 +298,13 @@ export function CostumeGallery({
 
       {selectedEntry && !onSelect && (
         <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="line-clamp-2 break-words">
                 {selectedEntry.costume_title}
               </DialogTitle>
             </DialogHeader>
-            <div className="relative h-96 w-full rounded-lg overflow-hidden">
+            <div className="relative h-96 w-full rounded-lg overflow-hidden mb-4">
               {imageErrors.has(selectedEntry.id) || !selectedEntry.image_url ? (
                 <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                   <div className="text-muted-foreground text-center p-4">
@@ -225,7 +326,7 @@ export function CostumeGallery({
                 />
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 mb-4">
               <p className="font-semibold truncate">{selectedEntry.name}</p>
               {selectedEntry.description && (
                 <p className="text-muted-foreground line-clamp-3 break-words">
@@ -238,6 +339,89 @@ export function CostumeGallery({
                 </p>
               )}
             </div>
+
+            {/* Phone Authentication (if voting is open and not authenticated) */}
+            {isVotingOpen && !readOnly && !isAuthenticated && (
+              <div className="space-y-4 p-4 glass rounded-lg border border-white/20">
+                <div className="space-y-2">
+                  <Label htmlFor="gallery-voter-phone" className="text-white font-semibold">
+                    מספר טלפון להצבעה
+                  </Label>
+                  <form onSubmit={handlePhoneSubmit} className="space-y-2">
+                    <Input
+                      id="gallery-voter-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      dir="ltr"
+                      value={voterPhone}
+                      onChange={(e) => {
+                        const value = e?.target?.value || ''
+                        const digits = value.replace(/\D/g, '')
+                        if (digits.length > 10) return
+                        if (digits.length === 10 && digits.startsWith('05')) {
+                          setVoterPhone(`${digits.slice(0, 3)}-${digits.slice(3)}`)
+                        } else {
+                          setVoterPhone(digits)
+                        }
+                      }}
+                      placeholder="05X-XXXXXXX"
+                      className="glass border-white/20 text-white placeholder:text-white/50"
+                      required
+                    />
+                    <Button type="submit" className="w-full">
+                      התחבר להצבעה
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Eurovision Style Voting Buttons */}
+            {isVotingOpen && !readOnly && isAuthenticated && (
+              <div className="space-y-3">
+                <div className="text-center mb-2">
+                  <p className="text-white/90 font-semibold">בחר את מספר הנקודות:</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {/* 8 Points - Silver/Gray */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleVote(8)}
+                    disabled={isSubmitting}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px]"
+                  >
+                    <span className="text-3xl">🥉</span>
+                    <span>8 נקודות</span>
+                  </motion.button>
+
+                  {/* 10 Points - Gold/Yellow */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleVote(10)}
+                    disabled={isSubmitting}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px]"
+                  >
+                    <span className="text-3xl">🥈</span>
+                    <span>10 נקודות</span>
+                  </motion.button>
+
+                  {/* 12 Points - Purple/Neon */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleVote(12)}
+                    disabled={isSubmitting}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[100px] relative overflow-hidden"
+                  >
+                    <span className="text-3xl">🥇</span>
+                    <span>12 נקודות</span>
+                    <span className="text-xs absolute bottom-1 opacity-80">דוז פואה!</span>
+                  </motion.button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}

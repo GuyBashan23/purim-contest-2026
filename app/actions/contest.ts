@@ -417,6 +417,108 @@ export async function checkVoterEligibility(phone: string, phase: 1 | 2) {
   }
 }
 
+// Simplified single vote submission for Eurovision-style voting
+export async function submitSingleVote(
+  voterPhone: string,
+  entryId: string,
+  points: 8 | 10 | 12
+) {
+  const supabase = await createServerSupabase()
+  const supabaseAdmin = createServiceRoleClient()
+
+  // SECURITY CHECK 1: Validate current phase allows voting
+  const { data: appSettings } = await supabaseAdmin
+    .from('app_settings')
+    .select('current_phase')
+    .single()
+
+  if (!appSettings) {
+    // Fallback: check contest_state for backward compatibility
+    const { data: contestState } = await supabaseAdmin
+      .from('contest_state')
+      .select('current_phase')
+      .single()
+
+    if (!contestState || (contestState.current_phase !== 'voting' && contestState.current_phase !== 'finals')) {
+      return { error: 'ההצבעה לא פעילה כרגע' }
+    }
+  } else {
+    // Check app_settings phase
+    if (appSettings.current_phase !== 'VOTING' && appSettings.current_phase !== 'FINALS') {
+      return { error: 'ההצבעה לא פעילה כרגע' }
+    }
+  }
+
+  // SECURITY CHECK 2: Validate points (must be 8, 10, or 12)
+  if (![8, 10, 12].includes(points)) {
+    return { error: 'נקודות לא תקינות. אפשרויות: 8, 10, 12' }
+  }
+
+  // SECURITY CHECK 3: Validate entry exists and get its phone number
+  const { data: entry, error: entryError } = await supabase
+    .from('entries')
+    .select('id, phone')
+    .eq('id', entryId)
+    .single()
+
+  if (entryError || !entry) {
+    return { error: 'התחפושת לא נמצאה' }
+  }
+
+  // SECURITY CHECK 4: Prevent self-voting
+  if (entry.phone === voterPhone) {
+    return { error: 'לא ניתן להצביע עבור התחפושת שלך' }
+  }
+
+  // Determine phase (1 for VOTING, 2 for FINALS)
+  const currentPhase = appSettings?.current_phase === 'FINALS' ? 2 : 1
+
+  // SECURITY CHECK 5: Check if already voted for this specific entry in this phase
+  // Note: This allows voting for multiple entries, but prevents duplicate votes for the same entry
+  const { data: existingVote } = await supabase
+    .from('votes')
+    .select('id')
+    .eq('voter_phone', voterPhone)
+    .eq('entry_id', entryId)
+    .eq('phase', currentPhase)
+    .single()
+
+  if (existingVote) {
+    return { error: 'כבר הצבעת עבור תחפושת זו' }
+  }
+
+  // All security checks passed - insert vote
+  const { error } = await supabase.from('votes').insert({
+    voter_phone: voterPhone,
+    entry_id: entryId,
+    points: points,
+    phase: currentPhase,
+  })
+
+  if (error) {
+    // Handle unique constraint violation (race condition)
+    if (error.code === '23505' || error.message?.includes('unique')) {
+      return { error: 'כבר הצבעת עבור תחפושת זו' }
+    }
+    return { error: error.message }
+  }
+
+  // Update voters table (mark as voted in phase)
+  if (currentPhase === 1) {
+    await supabase
+      .from('voters')
+      .upsert({ phone: voterPhone, voted_phase_2: true }, { onConflict: 'phone' })
+  } else if (currentPhase === 2) {
+    await supabase
+      .from('voters')
+      .upsert({ phone: voterPhone, voted_phase_3: true }, { onConflict: 'phone' })
+  }
+
+  revalidatePath('/gallery')
+  revalidatePath('/live')
+  return { success: true }
+}
+
 // New app_settings management functions
 export type AppPhase = 'UPLOAD' | 'VOTING' | 'FINALS' | 'ENDED'
 
