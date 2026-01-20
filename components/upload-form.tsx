@@ -10,7 +10,6 @@ import { useToast } from '@/components/ui/use-toast'
 import { Image as ImageIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
-import { AIScanner } from '@/components/ai-scanner'
 import { UploadPreviewModal } from '@/components/upload-preview-modal'
 import { UploadSuccessScreen } from '@/components/upload-success-screen'
 import { compressImage, blobToFile, validateImageFile, getFileSize } from '@/lib/utils/image-compression'
@@ -25,9 +24,6 @@ export function UploadForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
-  const [scannerImage, setScannerImage] = useState<string | null>(null)
-  const [verdict, setVerdict] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { playSound } = useSoundEffects()
@@ -82,9 +78,6 @@ export function UploadForm() {
       reader.onloadend = () => {
         const imageSrc = reader.result as string
         setPreview(imageSrc)
-        // Show scanner animation first
-        setScannerImage(imageSrc)
-        setShowScanner(true)
 
         // Dismiss loading toast and show success
         loadingToast.dismiss()
@@ -92,6 +85,9 @@ export function UploadForm() {
           title: 'תמונה דחוסה',
           description: `${originalSize} → ${compressedSize} (חיסכון ${savings}%)`,
         })
+
+        // Immediately show preview modal (skip scanner)
+        setShowPreviewModal(true)
       }
       reader.readAsDataURL(compressedBlob)
     } catch (error) {
@@ -105,14 +101,6 @@ export function UploadForm() {
     }
   }
 
-  const handleScannerComplete = () => {
-    setShowScanner(false)
-    setScannerImage(null)
-    // After scanner, show preview modal
-    setTimeout(() => {
-      setShowPreviewModal(true)
-    }, 300)
-  }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement> | string) => {
     let rawValue = ''
@@ -257,15 +245,6 @@ export function UploadForm() {
 
   return (
     <>
-      {/* AI Scanner Overlay */}
-      {showScanner && scannerImage && (
-        <AIScanner
-          imageSrc={scannerImage}
-          onComplete={handleScannerComplete}
-          onVerdict={setVerdict}
-        />
-      )}
-
       {/* Preview & Confirm Modal */}
       <UploadPreviewModal
         isOpen={showPreviewModal}
