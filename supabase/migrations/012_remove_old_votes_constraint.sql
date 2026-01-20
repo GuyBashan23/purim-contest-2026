@@ -3,7 +3,10 @@
 -- We need to remove it to allow Eurovision-style voting (multiple votes per phase)
 
 -- CRITICAL: Drop the old constraint by name first (most reliable method)
+-- Try multiple possible constraint names
 ALTER TABLE votes DROP CONSTRAINT IF EXISTS votes_voter_phone_phase_key;
+ALTER TABLE votes DROP CONSTRAINT IF EXISTS votes_voter_phone_phase_key1;
+ALTER TABLE votes DROP CONSTRAINT IF EXISTS votes_voter_phone_phase_key2;
 
 -- Also try to find and drop any constraint with voter_phone and phase (2 columns only)
 DO $$
