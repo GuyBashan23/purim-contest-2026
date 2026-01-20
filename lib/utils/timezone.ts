@@ -63,18 +63,69 @@ export function formatIsraelDateTimeLocal(date: string | Date | null | undefined
 
 /**
  * Parse a datetime-local value (from input) as Israel timezone and convert to ISO
+ * The datetime-local value is interpreted as the desired time in Israel timezone
+ * 
+ * Note: datetime-local input doesn't include timezone, so it's interpreted as browser's local time.
+ * This function converts it to represent the same moment as if the time was in Israel timezone.
  */
 export function parseIsraelDateTimeLocal(dateTimeLocal: string): string {
   if (!dateTimeLocal) return new Date().toISOString()
   
-  // datetime-local value is interpreted as local browser time
-  // We need to convert it to represent that same moment in Israel timezone
-  // Step 1: Parse the datetime-local value as if it's in the user's local timezone
-  const localDate = new Date(dateTimeLocal)
+  // Parse the datetime-local value
+  // Format: YYYY-MM-DDTHH:mm
+  const [datePart, timePart] = dateTimeLocal.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hours, minutes] = timePart.split(':').map(Number)
   
-  // Step 2: Get what time it is in Israel at that moment
-  // Use Intl.DateTimeFormat to get the time components in Israel timezone
-  const israelTimeStr = localDate.toLocaleString('en-US', {
+  // Create date string components
+  const yearStr = String(year)
+  const monthStr = String(month).padStart(2, '0')
+  const dayStr = String(day).padStart(2, '0')
+  const hoursStr = String(hours).padStart(2, '0')
+  const minutesStr = String(minutes).padStart(2, '0')
+  
+  // We need to interpret this time as being in Israel timezone
+  // The approach: create a date and calculate what UTC time corresponds to this Israel time
+  // We'll use a temporary date to find the timezone offset
+  
+  // Create a test date to determine timezone offset for Israel at this specific date/time
+  const testDateStr = `${yearStr}-${monthStr}-${dayStr}T${hoursStr}:${minutesStr}:00`
+  const testDate = new Date(testDateStr) // Parsed as local time
+  
+  // Get what this time would be in UTC and in Israel
+  const utcStr = testDate.toLocaleString('en-US', { timeZone: 'UTC', hour12: false })
+  const israelStr = testDate.toLocaleString('en-US', { timeZone: ISRAEL_TIMEZONE, hour12: false })
+  
+  // Calculate offset (simpler approach)
+  // Create date strings and compare
+  const tempUTC = new Date(testDate.toISOString())
+  const tempIsrael = new Date(
+    new Date(testDateStr).toLocaleString('en-US', { timeZone: ISRAEL_TIMEZONE })
+  )
+  
+  // Actually, a better approach: directly create ISO string with timezone
+  // Use Intl.DateTimeFormat to get the offset
+  const formatter = new Intl.DateTimeFormat('en', {
+    timeZone: ISRAEL_TIMEZONE,
+    timeZoneName: 'longOffset',
+  })
+  
+  // Simpler: create the date as if it's in Israel, then convert to ISO
+  // We'll create an ISO string that represents this time in Israel
+  // Method: create date with explicit timezone offset calculation
+  const dateObj = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0))
+  
+  // Get timezone offset for Israel at this specific date
+  // Create a date at this time and check offset
+  const sampleDate = new Date(`${yearStr}-${monthStr}-${dayStr}T12:00:00`)
+  const offsetStr = sampleDate.toLocaleString('en-US', {
+    timeZone: ISRAEL_TIMEZONE,
+    timeZoneName: 'short',
+  })
+  
+  // Get offset in hours by comparing UTC and Israel time
+  const utcTime = new Date(`${yearStr}-${monthStr}-${dayStr}T${hoursStr}:${minutesStr}:00Z`)
+  const israelTimeComponents = utcTime.toLocaleString('en-US', {
     timeZone: ISRAEL_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
@@ -84,43 +135,46 @@ export function parseIsraelDateTimeLocal(dateTimeLocal: string): string {
     hour12: false,
   })
   
-  // Step 3: Create a date string that represents the desired time in Israel
-  // Parse "MM/DD/YYYY, HH:mm" format
-  const [datePart, timePart] = israelTimeStr.split(', ')
-  const [month, day, year] = datePart.split('/').map(Number)
-  const [hours, minutes] = timePart.split(':').map(Number)
+  // Calculate what UTC time gives us the desired Israel time
+  // Reverse: if user wants HH:MM in Israel, what UTC time is that?
+  // We'll use a simple approximation: assume UTC+2 or UTC+3
+  // Better: use actual calculation
   
-  // Step 4: We need to work backwards - the user entered a time they want in Israel
-  // So we need to find what UTC time corresponds to that Israel time
-  // The datetime-local input value represents the desired local time in the browser's timezone
-  // But we want to interpret it as the desired time in Israel timezone
+  // Most reliable method: create date string with timezone, then convert
+  // Try UTC+2 first (winter), then UTC+3 (summer/DST)
+  let isoString = ''
   
-  // Better approach: Create a date string explicitly for Israel timezone
-  // Format: "YYYY-MM-DDTHH:mm:ss" and append timezone offset
-  const targetYear = year
-  const targetMonth = String(month).padStart(2, '0')
-  const targetDay = String(day).padStart(2, '0')
-  const targetHours = String(hours).padStart(2, '0')
-  const targetMinutes = String(minutes).padStart(2, '0')
+  // Try both offsets and see which one gives us the right time in Israel
+  for (const offset of ['+02:00', '+03:00']) {
+    const testISO = `${yearStr}-${monthStr}-${dayStr}T${hoursStr}:${minutesStr}:00${offset}`
+    const testDate2 = new Date(testISO)
+    const result = testDate2.toLocaleString('en-US', {
+      timeZone: ISRAEL_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    
+    const [resultDate, resultTime] = result.split(', ')
+    const [resultMonth, resultDay, resultYear] = resultDate.split('/').map(Number)
+    const [resultHour, resultMinute] = resultTime.split(':').map(Number)
+    
+    if (resultYear === year && resultMonth === month && resultDay === day &&
+        resultHour === hours && resultMinute === minutes) {
+      isoString = testDate2.toISOString()
+      break
+    }
+  }
   
-  // Get timezone offset for Israel at that date/time
-  // Use a more direct approach: create date in Israel timezone using a library approach
-  const israelDateStr = `${targetYear}-${targetMonth}-${targetDay}T${targetHours}:${targetMinutes}:00`
+  // Fallback: if nothing matched, use UTC+2 (IST)
+  if (!isoString) {
+    isoString = new Date(`${yearStr}-${monthStr}-${dayStr}T${hoursStr}:${minutesStr}:00+02:00`).toISOString()
+  }
   
-  // Since datetime-local doesn't include timezone, we need to interpret it
-  // The simplest approach: treat the datetime-local value as the desired Israel time
-  // and convert to ISO by creating a date that represents that moment
-  const utcDate = new Date(israelDateStr)
-  
-  // Adjust for timezone difference
-  // Get the timezone offset for Israel at this date
-  const testDate = new Date(utcDate.toLocaleString('en-US', { timeZone: ISRAEL_TIMEZONE }))
-  const localTest = new Date(utcDate.toLocaleString('en-US', { timeZone: 'UTC' }))
-  const offset = testDate.getTime() - localTest.getTime()
-  
-  const finalDate = new Date(utcDate.getTime() - offset)
-  
-  return finalDate.toISOString()
+  return isoString
 }
 
 /**
