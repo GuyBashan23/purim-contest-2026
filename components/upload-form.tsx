@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,9 +24,14 @@ export function UploadForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { playSound } = useSoundEffects()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -183,7 +188,7 @@ export function UploadForm() {
           result.error.includes('fetch') ||
           result.error.includes('network') ||
           result.error.includes('Failed to fetch') ||
-          navigator.onLine === false
+          (mounted && navigator.onLine === false)
 
         if (isNetworkError) {
           toast({
@@ -224,7 +229,7 @@ export function UploadForm() {
       console.error('Upload error:', error)
       const isNetworkError = 
         error instanceof TypeError && error.message.includes('fetch') ||
-        !navigator.onLine
+        (mounted && !navigator.onLine)
 
       toast({
         title: isNetworkError ? 'שגיאת רשת' : 'שגיאה',

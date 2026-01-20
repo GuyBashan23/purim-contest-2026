@@ -19,29 +19,40 @@ export function SwipeDeck({ entries, onVote, onSkip, disabled = false }: SwipeDe
   const [currentIndex, setCurrentIndex] = useState(0)
   const [exitX, setExitX] = useState<number>(0)
   const [direction, setDirection] = useState<'left' | 'right' | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const currentEntry = entries[currentIndex]
   const nextEntry = entries[currentIndex + 1]
 
   const handleSwipe = async (direction: 'left' | 'right', points?: number) => {
-    if (disabled || !currentEntry) return
+    if (disabled || !currentEntry || isProcessing) return
 
+    setIsProcessing(true)
     setDirection(direction)
     setExitX(direction === 'right' ? 1000 : -1000)
 
     // Wait for animation, then process
     setTimeout(async () => {
-      if (direction === 'right' && points) {
-        await onVote(currentEntry.id, points)
-      } else {
-        onSkip(currentEntry.id)
-      }
+      try {
+        if (direction === 'right' && points) {
+          await onVote(currentEntry.id, points)
+        } else {
+          onSkip(currentEntry.id)
+        }
 
-      // Move to next card
-      if (currentIndex < entries.length - 1) {
-        setCurrentIndex(currentIndex + 1)
+        // Move to next card
+        if (currentIndex < entries.length - 1) {
+          setCurrentIndex(currentIndex + 1)
+          setDirection(null)
+          setExitX(0)
+        }
+      } catch (error) {
+        console.error('Swipe error:', error)
+        // Reset on error
         setDirection(null)
         setExitX(0)
+      } finally {
+        setIsProcessing(false)
       }
     }, 300)
   }
@@ -105,7 +116,7 @@ export function SwipeDeck({ entries, onVote, onSkip, disabled = false }: SwipeDe
           variant="destructive"
           className="rounded-full w-16 h-16 p-0 shadow-lg hover:scale-110 transition-transform"
           onClick={() => handleButtonAction('skip')}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
         >
           <X className="w-8 h-8" />
         </Button>
@@ -114,7 +125,7 @@ export function SwipeDeck({ entries, onVote, onSkip, disabled = false }: SwipeDe
           size="lg"
           className="rounded-full w-20 h-20 p-0 bg-gradient-to-r from-green-500 to-emerald-500 shadow-lg hover:scale-110 transition-transform"
           onClick={() => handleButtonAction('like')}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
         >
           <Heart className="w-10 h-10 fill-white" />
         </Button>
@@ -123,7 +134,7 @@ export function SwipeDeck({ entries, onVote, onSkip, disabled = false }: SwipeDe
           size="lg"
           className="rounded-full w-20 h-20 p-0 bg-gradient-to-r from-orange-500 to-red-500 shadow-lg hover:scale-110 transition-transform"
           onClick={() => handleButtonAction('super')}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
         >
           <Flame className="w-10 h-10 fill-white" />
         </Button>

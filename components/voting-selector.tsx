@@ -35,8 +35,13 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
   const [selectedEntryForPoints, setSelectedEntryForPoints] = useState<Entry | null>(null)
   const [swipeEntries, setSwipeEntries] = useState<Entry[]>([])
   const [useSwipeMode, setUseSwipeMode] = useState(true) // Default to swipe mode
+  const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
   const { playSound } = useSoundEffects()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Fetch entries for swipe mode
   useEffect(() => {
@@ -99,9 +104,15 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
       })
     } catch (error) {
       console.error('Vote error:', error)
+      const isNetworkError = 
+        error instanceof TypeError && error.message.includes('fetch') ||
+        (mounted && !navigator.onLine)
+      
       toast({
-        title: 'שגיאה',
-        description: 'שגיאה בהצבעה. נסה שוב.',
+        title: isNetworkError ? 'שגיאת רשת' : 'שגיאה',
+        description: isNetworkError
+          ? 'אין חיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.'
+          : 'שגיאה בהצבעה. נסה שוב.',
         variant: 'destructive',
       })
     } finally {
@@ -207,7 +218,7 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
         const isNetworkError = 
           result.error.includes('fetch') ||
           result.error.includes('network') ||
-          !navigator.onLine
+          (mounted && !navigator.onLine)
 
         toast({
           title: isNetworkError ? 'שגיאת רשת' : 'שגיאה',

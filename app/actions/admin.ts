@@ -157,3 +157,56 @@ export async function getLeadingCandidate() {
 
   return { data }
 }
+
+export async function updateSlideshowSettings(
+  slideshowInterval: number,
+  slideshowBatchSize: number
+) {
+  const supabase = createServiceRoleClient()
+
+  const { data: settingsData } = await supabase
+    .from('app_settings')
+    .select('id')
+    .single()
+
+  if (!settingsData) {
+    return { error: 'App settings not found' }
+  }
+
+  const { error } = await supabase
+    .from('app_settings')
+    .update({
+      slideshow_interval: slideshowInterval,
+      slideshow_batch_size: slideshowBatchSize,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', settingsData.id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/live')
+  return { success: true }
+}
+
+export async function getSlideshowSettings() {
+  const supabase = createServiceRoleClient()
+
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('slideshow_interval, slideshow_batch_size')
+    .single()
+
+  if (error) {
+    return { error: error.message, data: null }
+  }
+
+  return { 
+    data: {
+      slideshowInterval: data?.slideshow_interval ?? 5000,
+      slideshowBatchSize: data?.slideshow_batch_size ?? 3,
+    }
+  }
+}
