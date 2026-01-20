@@ -173,10 +173,10 @@ export default function LivePage() {
     <div className="h-[100dvh] w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(8)].map((_, i) => (
+        {[...Array(12)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"
+            className="absolute w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] xl:w-[32rem] xl:h-[32rem] 2xl:w-[36rem] 2xl:h-[36rem] bg-purple-500/10 rounded-full blur-3xl"
             animate={{
               x: [0, 100, 0],
               y: [0, -100, 0],
@@ -188,8 +188,8 @@ export default function LivePage() {
               ease: 'easeInOut',
             }}
             style={{
-              left: `${10 + i * 12}%`,
-              top: `${10 + i * 12}%`,
+              left: `${5 + i * 8}%`,
+              top: `${5 + i * 8}%`,
             }}
           />
         ))}
@@ -199,7 +199,7 @@ export default function LivePage() {
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="absolute top-8 right-8 z-30 bg-black/60 backdrop-blur-md border-2 border-purple-500/50 rounded-2xl px-8 py-4 shadow-2xl"
+        className="absolute top-4 right-4 md:top-8 md:right-8 xl:top-12 xl:right-12 z-30 bg-black/60 backdrop-blur-md border-2 border-purple-500/50 rounded-2xl px-4 py-3 md:px-8 md:py-4 xl:px-10 xl:py-5 shadow-2xl"
         style={{
           boxShadow: '0 0 40px rgba(168, 85, 247, 0.4), inset 0 0 20px rgba(168, 85, 247, 0.1)',
         }}
@@ -211,10 +211,10 @@ export default function LivePage() {
           transition={{ duration: 0.5 }}
           className="text-center"
         >
-          <p className="text-2xl md:text-3xl font-bold text-purple-300 mb-1">
+          <p className="text-lg md:text-2xl xl:text-3xl 2xl:text-4xl font-bold text-purple-300 mb-1">
             סה״כ תחפושות
           </p>
-          <p className="text-5xl md:text-7xl font-black text-white drop-shadow-2xl">
+          <p className="text-4xl md:text-6xl xl:text-7xl 2xl:text-8xl font-black text-white drop-shadow-2xl">
             {totalCount}
           </p>
         </motion.div>
@@ -231,7 +231,7 @@ export default function LivePage() {
             className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
           >
             <div
-              className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-8 md:p-12 rounded-3xl shadow-2xl border-4 border-white/30"
+              className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-6 sm:p-8 md:p-10 lg:p-12 xl:p-14 2xl:p-16 rounded-2xl sm:rounded-3xl lg:rounded-4xl shadow-2xl border-2 sm:border-3 md:border-4 border-white/30"
               style={{
                 boxShadow:
                   '0 0 80px rgba(168, 85, 247, 0.8), 0 0 160px rgba(236, 72, 153, 0.6), inset 0 0 40px rgba(255, 255, 255, 0.2)',
@@ -248,10 +248,10 @@ export default function LivePage() {
                 }}
                 className="text-center"
               >
-                <p className="text-4xl md:text-6xl lg:text-8xl font-black text-white mb-4 drop-shadow-2xl">
+                <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-black text-white mb-4 drop-shadow-2xl">
                   {newUploadToast.name} העלה תחפושת!
                 </p>
-                <p className="text-3xl md:text-5xl lg:text-7xl font-bold text-yellow-300 drop-shadow-xl">
+                <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold text-yellow-300 drop-shadow-xl">
                   בהצלחה! 🎭
                 </p>
               </motion.div>
@@ -261,7 +261,7 @@ export default function LivePage() {
       </AnimatePresence>
 
       {/* Slideshow Grid */}
-      <div className="h-full w-full flex items-center justify-center p-4 md:p-8">
+      <div className="h-full w-full flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 xl:p-10 2xl:p-12">
         <AnimatePresence mode="wait">
           {currentBatch.length > 0 ? (
             <motion.div
@@ -270,16 +270,26 @@ export default function LivePage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
-              className={`grid gap-4 md:gap-6 lg:gap-8 w-full h-full max-w-7xl ${
+              className={`grid gap-2 sm:gap-4 md:gap-6 lg:gap-8 xl:gap-10 2xl:gap-12 w-full h-full ${
                 slideshowBatchSize === 1
-                  ? 'grid-cols-1'
+                  ? 'grid-cols-1 max-w-4xl xl:max-w-5xl 2xl:max-w-6xl'
                   : slideshowBatchSize === 2
-                  ? 'grid-cols-2'
+                  ? 'grid-cols-2 max-w-6xl xl:max-w-7xl 2xl:max-w-8xl'
                   : slideshowBatchSize === 3
-                  ? 'grid-cols-3'
+                  ? 'grid-cols-3 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[100rem]'
                   : slideshowBatchSize === 4
-                  ? 'grid-cols-2 md:grid-cols-4'
-                  : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
+                  ? 'grid-cols-2 md:grid-cols-4 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[100rem]'
+                  : slideshowBatchSize === 5
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[120rem]'
+                  : slideshowBatchSize === 6
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[120rem]'
+                  : slideshowBatchSize === 7
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[140rem]'
+                  : slideshowBatchSize === 8
+                  ? 'grid-cols-2 md:grid-cols-4 lg:grid-cols-8 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[140rem]'
+                  : slideshowBatchSize === 9
+                  ? 'grid-cols-3 md:grid-cols-3 lg:grid-cols-9 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[140rem]'
+                  : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 max-w-7xl xl:max-w-[90rem] 2xl:max-w-[160rem]'
               }`}
             >
               {currentBatch.map((entry, idx) => (
@@ -293,7 +303,7 @@ export default function LivePage() {
                     delay: idx * 0.1,
                     ease: [0.16, 1, 0.3, 1],
                   }}
-                  className="relative w-full h-full rounded-2xl overflow-hidden group"
+                  className="relative w-full h-full rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-hidden group"
                   style={{
                     boxShadow:
                       '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1)',
@@ -316,18 +326,18 @@ export default function LivePage() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     whileHover={{ opacity: 1, y: 0 }}
-                    className="absolute bottom-0 left-0 right-0 p-4 md:p-6"
+                    className="absolute bottom-0 left-0 right-0 p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6"
                   >
-                    <h3 className="text-xl md:text-3xl font-bold text-white drop-shadow-2xl mb-1">
+                    <h3 className="text-sm sm:text-base md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl font-bold text-white drop-shadow-2xl mb-1">
                       {entry.costume_title}
                     </h3>
-                    <p className="text-sm md:text-lg text-white/80 drop-shadow-lg">
+                    <p className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl 2xl:text-2xl text-white/80 drop-shadow-lg">
                       {entry.name}
                     </p>
                   </motion.div>
                   {/* Neon Border Effect */}
                   <motion.div
-                    className="absolute inset-0 rounded-2xl"
+                    className="absolute inset-0 rounded-xl sm:rounded-2xl lg:rounded-3xl"
                     style={{
                       boxShadow: 'inset 0 0 20px rgba(168, 85, 247, 0.5)',
                     }}
@@ -353,41 +363,13 @@ export default function LivePage() {
               animate={{ opacity: 1 }}
               className="text-center"
             >
-              <p className="text-4xl md:text-6xl font-bold text-white/60">
+              <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-bold text-white/60">
                 טוען תמונות...
               </p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Title Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="absolute bottom-8 left-0 right-0 z-20 text-center"
-      >
-        <motion.h1
-          animate={{
-            scale: [1, 1.05, 1],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="text-5xl md:text-7xl lg:text-9xl font-black text-white drop-shadow-2xl mb-2"
-          style={{
-            textShadow:
-              '0 0 40px rgba(255,255,255,0.5), 0 0 80px rgba(168, 85, 247, 0.5), 0 0 120px rgba(236, 72, 153, 0.3)',
-          }}
-        >
-          לוח חי - Live Wall
-        </motion.h1>
-        <p className="text-xl md:text-2xl lg:text-3xl text-white/80 drop-shadow-lg">
-          J&J MedTech Purim 2026
-        </p>
-      </motion.div>
     </div>
   )
 }
