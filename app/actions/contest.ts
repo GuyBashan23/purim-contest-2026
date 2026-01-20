@@ -544,6 +544,14 @@ export async function submitSingleVote(
       console.error('[submitSingleVote] Error inserting vote:', insertError)
       // Handle unique constraint violation
       if (insertError.code === '23505' || insertError.message?.includes('unique')) {
+        // Check which constraint was violated
+        if (insertError.message?.includes('votes_voter_phone_phase_key')) {
+          console.error('[submitSingleVote] Old constraint still exists! Migration 012 needs to be run.')
+          return { error: 'שגיאת מסד נתונים: יש להריץ מיגרציה 012 להסרת אילוץ ישן' }
+        }
+        if (insertError.message?.includes('votes_voter_phone_points_phase_key')) {
+          return { error: 'כבר הצבעת עם נקודות אלו' }
+        }
         return { error: 'כבר הצבעת עם נקודות אלו' }
       }
       return { error: `שגיאה בהצבעה: ${insertError.message}` }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   Accordion,
   AccordionContent,
@@ -24,6 +24,9 @@ export function FAQModal({ isOpen, onClose }: FAQModalProps) {
           <DialogTitle className="text-2xl font-bold text-white text-center">
             שאלות ותשובות
           </DialogTitle>
+          <DialogDescription className="text-white/70 text-center">
+            תשובות לשאלות נפוצות על התחרות
+          </DialogDescription>
         </DialogHeader>
         <div className="mt-4">
           <Accordion type="single" collapsible className="w-full space-y-2">

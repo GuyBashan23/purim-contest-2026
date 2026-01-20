@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Trash2, Edit, Plus, Image as ImageIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -312,6 +312,9 @@ export function GalleryManagerTab({
         <DialogContent className="glass border-slate-700 max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">ערוך רשומה</DialogTitle>
+            <DialogDescription className="text-white/70">
+              עדכן את פרטי הרשומה
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -366,6 +369,9 @@ export function GalleryManagerTab({
         <DialogContent className="glass border-red-500/50 max-w-md">
           <DialogHeader>
             <DialogTitle className="text-red-400">מחיקת רשומה</DialogTitle>
+            <DialogDescription className="text-white/70">
+              פעולה זו תמחק את הרשומה לצמיתות
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-white">

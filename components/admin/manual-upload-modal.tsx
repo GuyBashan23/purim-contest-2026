@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -209,6 +209,9 @@ export function ManualUploadModal({
       <DialogContent className="glass border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-white text-2xl">העלאה ידנית</DialogTitle>
+          <DialogDescription className="text-white/70">
+            העלה תחפושת חדשה ידנית למערכת
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">

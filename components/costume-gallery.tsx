@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -371,6 +371,9 @@ export function CostumeGallery({
               <DialogTitle className="line-clamp-2 break-words">
                 {selectedEntry.costume_title}
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                תצוגה מפורטת של התחפושת {selectedEntry.costume_title} מאת {selectedEntry.name}
+              </DialogDescription>
             </DialogHeader>
             <div className="relative h-96 w-full rounded-lg overflow-hidden mb-4">
               {imageErrors.has(selectedEntry.id) || !selectedEntry.image_url ? (
