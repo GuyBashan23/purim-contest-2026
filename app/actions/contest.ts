@@ -473,9 +473,26 @@ export async function submitSingleVote(
   // Determine phase (1 for VOTING, 2 for FINALS)
   const currentPhase = appSettings?.current_phase === 'FINALS' ? 2 : 1
 
-  // EUROVISION LOGIC: Check if user already gave this point value to another entry
-  // If yes, we need to "move" the vote (delete old, insert new)
-  const { data: existingVoteForPoints, error: checkError } = await supabase
+  // THE "3 COINS" LOGIC - Strict Eurovision voting rules:
+  // 1. "Switch Rule": User can only vote ONCE per entry (update if exists)
+  // 2. "Steal Rule": User can only have ONE vote with each point value (8, 10, 12)
+
+  // STEP 1: Check if user already voted on THIS entry (Switch Rule)
+  const { data: existingVoteOnEntry, error: checkEntryError } = await supabase
+    .from('votes')
+    .select('id, points')
+    .eq('voter_phone', voterPhone)
+    .eq('entry_id', entryId)
+    .eq('phase', currentPhase)
+    .single()
+
+  if (checkEntryError && checkEntryError.code !== 'PGRST116') {
+    // PGRST116 = no rows returned (expected if no vote exists)
+    return { error: 'שגיאה בבדיקת הצבעות קיימות' }
+  }
+
+  // STEP 2: Check if user already gave THIS point value to ANOTHER entry (Steal Rule)
+  const { data: existingVoteForPoints, error: checkPointsError } = await supabase
     .from('votes')
     .select('id, entry_id')
     .eq('voter_phone', voterPhone)
@@ -483,44 +500,79 @@ export async function submitSingleVote(
     .eq('phase', currentPhase)
     .single()
 
-  if (checkError && checkError.code !== 'PGRST116') {
-    // PGRST116 = no rows returned (expected if no vote exists)
+  if (checkPointsError && checkPointsError.code !== 'PGRST116') {
     return { error: 'שגיאה בבדיקת הצבעות קיימות' }
   }
 
-  // Use transaction-like logic: delete old vote first, then insert new one
-  // This ensures the unique constraint (voter_phone, points, phase) is maintained
-  if (existingVoteForPoints) {
-    // Check if trying to vote for the same entry with same points (no-op)
-    if (existingVoteForPoints.entry_id === entryId) {
-      return { success: true, moved: false } // Already voted for this entry with these points
+  // STEP 3: Handle the logic
+  let movedFromEntryId: string | undefined = undefined
+  let updatedExisting = false
+
+  if (existingVoteOnEntry) {
+    // Switch Rule: User already voted on this entry
+    if (existingVoteOnEntry.points === points) {
+      // Same points on same entry - no-op
+      return { success: true, moved: false, updated: false }
     }
 
-    // Delete the old vote (this will trigger score update for old entry)
-    const { error: deleteError } = await supabase
+    // Different points on same entry - UPDATE the vote
+    // But first, we need to handle the Steal Rule if the new points are already used elsewhere
+    if (existingVoteForPoints && existingVoteForPoints.entry_id !== entryId) {
+      // The new points are already used on another entry - delete that vote first
+      const { error: deleteError } = await supabase
+        .from('votes')
+        .delete()
+        .eq('id', existingVoteForPoints.id)
+
+      if (deleteError) {
+        return { error: 'שגיאה בהסרת הצבעה קודמת' }
+      }
+
+      movedFromEntryId = existingVoteForPoints.entry_id
+    }
+
+    // Now update the vote on this entry
+    const { error: updateError } = await supabase
       .from('votes')
-      .delete()
-      .eq('id', existingVoteForPoints.id)
+      .update({ points: points })
+      .eq('id', existingVoteOnEntry.id)
 
-    if (deleteError) {
-      return { error: 'שגיאה בהסרת הצבעה קודמת' }
+    if (updateError) {
+      return { error: 'שגיאה בעדכון הצבעה' }
     }
-  }
 
-  // Insert the new vote (this will trigger score update for new entry)
-  const { error: insertError } = await supabase.from('votes').insert({
-    voter_phone: voterPhone,
-    entry_id: entryId,
-    points: points,
-    phase: currentPhase,
-  })
+    updatedExisting = true
+  } else {
+    // No vote on this entry yet - Steal Rule applies
+    if (existingVoteForPoints) {
+      // User already gave these points to another entry - delete old vote
+      const { error: deleteError } = await supabase
+        .from('votes')
+        .delete()
+        .eq('id', existingVoteForPoints.id)
 
-  if (insertError) {
-    // Handle unique constraint violation (shouldn't happen, but just in case)
-    if (insertError.code === '23505' || insertError.message?.includes('unique')) {
-      return { error: 'כבר הצבעת עם נקודות אלו' }
+      if (deleteError) {
+        return { error: 'שגיאה בהסרת הצבעה קודמת' }
+      }
+
+      movedFromEntryId = existingVoteForPoints.entry_id
     }
-    return { error: insertError.message }
+
+    // Insert the new vote
+    const { error: insertError } = await supabase.from('votes').insert({
+      voter_phone: voterPhone,
+      entry_id: entryId,
+      points: points,
+      phase: currentPhase,
+    })
+
+    if (insertError) {
+      // Handle unique constraint violation (shouldn't happen, but just in case)
+      if (insertError.code === '23505' || insertError.message?.includes('unique')) {
+        return { error: 'כבר הצבעת עם נקודות אלו' }
+      }
+      return { error: insertError.message }
+    }
   }
 
   // Update voters table (mark as voted in phase)
@@ -538,8 +590,9 @@ export async function submitSingleVote(
   revalidatePath('/live')
   return { 
     success: true, 
-    moved: !!existingVoteForPoints,
-    previousEntryId: existingVoteForPoints?.entry_id 
+    moved: !!movedFromEntryId,
+    updated: updatedExisting,
+    previousEntryId: movedFromEntryId 
   }
 }
 
