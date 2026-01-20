@@ -150,31 +150,49 @@ export function CostumeGallery({
           fetchEntries()
         }
       )
+      // ALSO subscribe to votes table changes - when a vote is added/removed, refresh scores
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'votes',
+        },
+        (payload) => {
+          console.log('🗳️ Vote changed via realtime:', payload.eventType)
+          lastFetchTime = Date.now()
+          // When a vote changes, the trigger should update the entry score
+          // But we'll refresh to be sure
+          setTimeout(() => {
+            console.log('[Realtime] Refreshing entries after vote change...')
+            fetchEntries()
+          }, 300) // Small delay to let trigger complete
+        }
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to entries realtime updates')
+          console.log('✅ Successfully subscribed to entries and votes realtime updates')
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Realtime subscription error - check Supabase Realtime is enabled')
           console.log('📖 Enable Realtime in Supabase Dashboard:')
           console.log('   1. Go to Database → Replication')
-          console.log('   2. Find "entries" table')
-          console.log('   3. Toggle "Enable Realtime" ON')
+          console.log('   2. Find "entries" and "votes" tables')
+          console.log('   3. Toggle "Enable Realtime" ON for both')
         } else {
           console.warn(`⚠️ Realtime subscription status: ${status}`)
         }
       })
 
-    // Polling fallback: Refresh entries every 2 seconds if no realtime updates
+    // Aggressive polling: Refresh entries every 1 second
     // This ensures scores are updated even if realtime fails
     pollingInterval = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastFetchTime
-      // Only poll if we haven't received an update in the last 3 seconds
-      if (timeSinceLastUpdate > 3000) {
-        console.log('[Polling] No realtime updates, refreshing entries...')
+      // Poll more aggressively - every second
+      if (timeSinceLastUpdate > 1000) {
         fetchEntries()
         lastFetchTime = Date.now()
       }
-    }, 2000)
+    }, 1000)
 
     return () => {
       entriesChannel.unsubscribe()
@@ -326,30 +344,28 @@ export function CostumeGallery({
         description: `ניתנו ${points} נקודות${points === 12 ? ' - דוז פואה!' : ''}${movedMessage}`,
       })
 
-      // Optimistically update the selected entry's score in local state immediately
+      // Optimistically update the selected entry's score in local state IMMEDIATELY
       // This gives instant feedback while the database trigger updates the actual score
       if (selectedEntry) {
         // Calculate new score correctly:
         // 1. If user already voted on this entry, we need to subtract the old vote first
         // 2. Then add the new points
-        // Use updatedVotes (which already has the new vote) to get the previous vote
         const currentScore = selectedEntry.total_score || 0
-        // Before we added the new vote, check what the previous vote was
         const previousVoteOnThisEntry = userVotes[selectedEntry.id] || 0
         const newScore = currentScore - previousVoteOnThisEntry + points
         
-        console.log(`[handleVote] Updating score for entry ${selectedEntry.id}:`)
+        console.log(`[handleVote] OPTIMISTIC UPDATE for entry ${selectedEntry.id}:`)
         console.log(`  Current score: ${currentScore}`)
         console.log(`  Previous vote on this entry: ${previousVoteOnThisEntry}`)
         console.log(`  New points: ${points}`)
-        console.log(`  Calculated new score: ${currentScore} - ${previousVoteOnThisEntry} + ${points} = ${newScore}`)
+        console.log(`  New score: ${newScore}`)
         
-        // Update in entries list immediately
+        // Update in entries list IMMEDIATELY
         setEntries((prevEntries) => {
           const updated = prevEntries.map((entry) => {
             if (entry.id === selectedEntry.id) {
               const updatedEntry = { ...entry, total_score: newScore }
-              console.log(`[handleVote] Updated entry ${entry.id} in list: ${entry.total_score} -> ${newScore}`)
+              console.log(`[handleVote] ✅ Updated entry ${entry.id} in list: ${entry.total_score} -> ${newScore}`)
               return updatedEntry
             }
             return entry
@@ -357,34 +373,42 @@ export function CostumeGallery({
           return updated
         })
         
-        // Update selectedEntry if it's still open
+        // Update selectedEntry IMMEDIATELY
         setSelectedEntry((prev) => {
           if (prev && prev.id === selectedEntry.id) {
             const updated = { ...prev, total_score: newScore }
-            console.log(`[handleVote] Updated selectedEntry: ${prev.total_score} -> ${newScore}`)
+            console.log(`[handleVote] ✅ Updated selectedEntry: ${prev.total_score} -> ${newScore}`)
             return updated
           }
           return prev
         })
       }
       
-      // Force refresh entries after a short delay to sync with DB
-      // This ensures we get the actual calculated score from the database trigger
-      // We do multiple refreshes to ensure the score is updated
-      setTimeout(async () => {
-        console.log('[handleVote] First refresh from DB (500ms)...')
-        await fetchEntries()
-      }, 500)
+      // Also handle previous entry if vote was moved
+      if (result.moved && result.previousEntryId) {
+        const movedPoints = result.points || points
+        setEntries((prevEntries) => {
+          const updated = prevEntries.map((entry) => {
+            if (entry.id === result.previousEntryId) {
+              const newScore = Math.max(0, (entry.total_score || 0) - movedPoints)
+              console.log(`[handleVote] ✅ Updated previous entry ${entry.id}: ${entry.total_score} -> ${newScore}`)
+              return { ...entry, total_score: newScore }
+            }
+            return entry
+          })
+          return updated
+        })
+      }
       
-      setTimeout(async () => {
-        console.log('[handleVote] Second refresh from DB (1000ms)...')
-        await fetchEntries()
-      }, 1000)
-      
-      setTimeout(async () => {
-        console.log('[handleVote] Third refresh from DB (2000ms - final)...')
-        await fetchEntries()
-      }, 2000)
+      // Aggressive refresh strategy: Multiple refreshes to ensure DB trigger updated the score
+      // The trigger should update immediately, but we refresh to be 100% sure
+      const refreshDelays = [300, 600, 1200, 2000]
+      refreshDelays.forEach((delay, index) => {
+        setTimeout(async () => {
+          console.log(`[handleVote] Refresh #${index + 1} from DB (${delay}ms)...`)
+          await fetchEntries()
+        }, delay)
+      })
 
       // Auto-close modal after 1 second
       setTimeout(() => {
