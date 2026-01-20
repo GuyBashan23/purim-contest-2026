@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useContestPhase } from '@/lib/hooks/use-contest-phase'
 import { setAppPhase, resetContest, triggerFinals } from '@/app/actions/contest'
-import { updateVotingStartTime } from '@/app/actions/admin'
+import { updateVotingStartTime, updateSlideshowSettings, getSlideshowSettings } from '@/app/actions/admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +16,9 @@ import {
   Trophy, 
   PartyPopper,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Monitor,
+  Image as ImageIcon
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
@@ -39,13 +41,24 @@ export function LiveControlTab({
   const router = useRouter()
   const { playSound } = useSoundEffects()
   const [votingTime, setVotingTime] = useState('')
+  const [slideshowInterval, setSlideshowInterval] = useState(5000)
+  const [slideshowBatchSize, setSlideshowBatchSize] = useState(3)
 
   useEffect(() => {
     if (votingStartTime) {
       // Convert ISO string to Israel timezone datetime-local format
       setVotingTime(formatIsraelDateTimeLocal(votingStartTime))
     }
+    loadSlideshowSettings()
   }, [votingStartTime])
+
+  const loadSlideshowSettings = async () => {
+    const result = await getSlideshowSettings()
+    if (result.data) {
+      setSlideshowInterval(result.data.slideshowInterval)
+      setSlideshowBatchSize(result.data.slideshowBatchSize)
+    }
+  }
 
   const handleUpdateTimer = async () => {
     if (!votingTime) {
@@ -145,8 +158,96 @@ export function LiveControlTab({
     setIsLoading(false)
   }
 
+  const handleUpdateSlideshowSettings = async () => {
+    if (slideshowInterval < 1000 || slideshowBatchSize < 1 || slideshowBatchSize > 10) {
+      toast({
+        title: 'שגיאה',
+        description: 'מרווח זמן מינימלי: 1000ms, גודל אצווה: 1-10',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsLoading(true)
+    const result = await updateSlideshowSettings(slideshowInterval, slideshowBatchSize)
+
+    if (result?.error) {
+      toast({
+        title: 'שגיאה',
+        description: result.error,
+        variant: 'destructive',
+      })
+    } else {
+      playSound('phase-change')
+      toast({
+        title: 'הצלחה',
+        description: 'הגדרות הלוח החי עודכנו!',
+      })
+    }
+    setIsLoading(false)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Slideshow Settings */}
+      <Card className="glass border-slate-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" />
+            הגדרות לוח חי (Live Wall)
+          </CardTitle>
+          <CardDescription>
+            הגדר את המרווח והגודל של תצוגת התמונות על המסך
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="slideshow-interval" className="text-white">
+                מרווח זמן (מילישניות)
+              </Label>
+              <Input
+                id="slideshow-interval"
+                type="number"
+                min="1000"
+                step="500"
+                value={slideshowInterval}
+                onChange={(e) => setSlideshowInterval(parseInt(e.target.value) || 5000)}
+                className="glass border-white/20 text-white"
+              />
+              <p className="text-xs text-white/60">
+                זמן בין החלפת תמונות (מומלץ: 3000-10000ms)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slideshow-batch-size" className="text-white">
+                גודל אצווה (מספר תמונות)
+              </Label>
+              <Input
+                id="slideshow-batch-size"
+                type="number"
+                min="1"
+                max="10"
+                value={slideshowBatchSize}
+                onChange={(e) => setSlideshowBatchSize(parseInt(e.target.value) || 3)}
+                className="glass border-white/20 text-white"
+              />
+              <p className="text-xs text-white/60">
+                מספר תמונות להצגה בו-זמנית (1-10)
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleUpdateSlideshowSettings}
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600"
+          >
+            <ImageIcon className="h-4 w-4 mr-2" />
+            עדכן הגדרות לוח חי
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Timer Control */}
       <Card className="glass border-slate-700">
         <CardHeader>
