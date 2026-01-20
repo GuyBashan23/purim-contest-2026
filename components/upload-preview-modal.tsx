@@ -71,7 +71,7 @@ export function UploadPreviewModal({
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5 md:space-y-6 max-h-[70vh] overflow-y-auto">
             {/* Polaroid-style Image Frame */}
             <div className="relative bg-white p-4 rounded-lg shadow-2xl">
               <div className="relative aspect-[3/4] w-full rounded overflow-hidden">

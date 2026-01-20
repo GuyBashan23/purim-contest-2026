@@ -263,19 +263,19 @@ export function UploadForm() {
       />
 
       {/* Main Upload Form */}
-      <div className="glass rounded-2xl p-6 shadow-xl w-full">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">הרשמה לתחרות</h2>
-          <p className="text-white/80">
+      <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl w-full">
+        <div className="mb-4 sm:mb-5 md:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">הרשמה לתחרות</h2>
+          <p className="text-sm sm:text-base text-white/80">
             העלה את תמונת התחפושת שלך והצטרף לתחרות
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-5 md:space-y-6">
           {/* Image Upload Area */}
           <div className="space-y-2">
-            <Label htmlFor="image" className="text-white font-semibold">תמונת התחפושת</Label>
-            <div className="border-2 border-white/30 border-dashed rounded-2xl p-8 text-center glass hover:border-white/50 transition-all">
+            <Label htmlFor="image" className="text-white font-semibold text-sm sm:text-base">תמונת התחפושת</Label>
+            <div className="border-2 border-white/30 border-dashed rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-center glass hover:border-white/50 transition-all">
               {preview ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -285,21 +285,21 @@ export function UploadForm() {
                   <img
                     src={preview}
                     alt="Preview"
-                    className="max-h-48 mx-auto rounded-2xl shadow-lg"
+                    className="max-h-32 sm:max-h-40 md:max-h-48 mx-auto rounded-xl sm:rounded-2xl shadow-lg"
                   />
-                  <p className="text-white/80 mt-4 text-sm">
+                  <p className="text-white/80 mt-2 sm:mt-3 md:mt-4 text-xs sm:text-sm">
                     תמונה נבחרה - לחץ שוב לבחירת תמונה אחרת
                   </p>
                 </motion.div>
               ) : (
                 <div>
-                  <ImageIcon className="h-16 w-16 mx-auto text-white/60 mb-4" />
+                  <ImageIcon className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 mx-auto text-white/60 mb-3 sm:mb-4" />
                   <Label htmlFor="image" className="cursor-pointer text-white">
-                    <span className="text-yellow-300 hover:underline font-semibold text-lg">
+                    <span className="text-yellow-300 hover:underline font-semibold text-base sm:text-lg">
                       לחץ לבחירת תמונה
                     </span>
                     <br />
-                    <span className="text-white/60 text-sm mt-2 block">
+                    <span className="text-white/60 text-xs sm:text-sm mt-1 sm:mt-2 block">
                       או גרור לכאן
                     </span>
                   </Label>
@@ -318,7 +318,7 @@ export function UploadForm() {
           </div>
 
           {/* Info Text */}
-          <p className="text-white/60 text-sm text-center">
+          <p className="text-white/60 text-xs sm:text-sm text-center">
             לאחר בחירת התמונה תוכל לבדוק ולאשר לפני השליחה
           </p>
         </div>
