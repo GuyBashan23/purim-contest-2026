@@ -2,11 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { getContestStats } from '@/app/actions/contest'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useToast } from '@/components/ui/use-toast'
 import { motion } from 'framer-motion'
 import { LiveControlTab } from '@/components/admin/live-control-tab'
 import { GalleryManagerTab } from '@/components/admin/gallery-manager-tab'
@@ -14,74 +11,18 @@ import { AnalyticsTab } from '@/components/admin/analytics-tab'
 import { Settings, Image as ImageIcon, BarChart3 } from 'lucide-react'
 
 export default function AdminDashboard() {
-  const [password, setPassword] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('live')
   const [stats, setStats] = useState<{ totalEntries: number; totalVotes: number }>({ 
     totalEntries: 0, 
     totalVotes: 0 
   })
-  const { toast } = useToast()
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadStats()
-      const interval = setInterval(loadStats, 5000)
-      return () => clearInterval(interval)
-    }
-  }, [isAuthenticated])
-
-  const handleLogin = async () => {
-    if (!password || password.length === 0) {
-      toast({
-        title: 'שגיאה',
-        description: 'אנא הזן סיסמה',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      // Validate password with server
-      const response = await fetch('/api/admin/check', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
-      })
-
-      const data = await response.json()
-
-      if (data.valid) {
-        setIsAuthenticated(true)
-        toast({
-          title: 'ברוך הבא',
-          description: 'נכנסת למרכז הבקרה',
-        })
-      } else {
-        const errorMsg = data.error === 'Unauthorized' 
-          ? 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.'
-          : data.error || 'סיסמה שגויה'
-        toast({
-          title: 'שגיאה',
-          description: errorMsg,
-          variant: 'destructive',
-        })
-      }
-    } catch (error) {
-      console.error('Login error:', error)
-      toast({
-        title: 'שגיאה',
-        description: 'שגיאה בבדיקת הסיסמה. נסה שוב.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    loadStats()
+    const interval = setInterval(loadStats, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const loadStats = async () => {
     const result = await getContestStats()
@@ -91,45 +32,6 @@ export default function AdminDashboard() {
         totalVotes: result.totalVotes,
       })
     }
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 to-slate-800">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md"
-        >
-          <Card className="glass border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-2xl text-white">מרכז הבקרה</CardTitle>
-              <CardDescription className="text-white/70">הזן סיסמה כדי להמשיך</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Input
-                  type="password"
-                  placeholder="סיסמה"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  className="glass border-white/20 text-white"
-                />
-                <Button 
-                  onClick={handleLogin} 
-                  className="w-full bg-gradient-to-r from-[#eb1801] to-[#FF6B35]" 
-                  size="lg"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'בודק...' : 'התחבר'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    )
   }
 
   return (
@@ -204,7 +106,6 @@ export default function AdminDashboard() {
 
             <TabsContent value="live">
               <LiveControlTab
-                password={password}
                 isLoading={isLoading}
                 setIsLoading={setIsLoading}
                 onStatsUpdate={loadStats}
@@ -213,7 +114,6 @@ export default function AdminDashboard() {
 
             <TabsContent value="gallery">
               <GalleryManagerTab
-                password={password}
                 isLoading={isLoading}
                 setIsLoading={setIsLoading}
                 onStatsUpdate={loadStats}
@@ -221,7 +121,7 @@ export default function AdminDashboard() {
             </TabsContent>
 
             <TabsContent value="analytics">
-              <AnalyticsTab password={password} />
+              <AnalyticsTab />
             </TabsContent>
           </Tabs>
         </motion.div>

@@ -5,20 +5,8 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import type { ContestPhase } from '@/lib/store/contest-store'
 import { revalidatePath } from 'next/cache'
 
-export async function setPhase(phase: ContestPhase, password: string) {
+export async function setPhase(phase: ContestPhase) {
   try {
-    const adminPassword = process.env.ADMIN_PASSWORD
-    
-    if (!adminPassword) {
-      console.error('ADMIN_PASSWORD environment variable is not set')
-      return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-    }
-    
-    if (password !== adminPassword) {
-      console.error('Password mismatch in setPhase')
-      return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-    }
-
     // Use Service Role client to bypass RLS
     const supabase = createServiceRoleClient()
     const now = new Date().toISOString()
@@ -69,18 +57,7 @@ export async function setPhase(phase: ContestPhase, password: string) {
   }
 }
 
-export async function resetContest(password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in resetContest')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
+export async function resetContest() {
 
   const supabase = createServiceRoleClient()
 
@@ -591,18 +568,7 @@ export async function getContestStats() {
   }
 }
 
-export async function triggerFinals(password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in triggerFinals')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
+export async function triggerFinals() {
 
   const supabase = createServiceRoleClient()
 

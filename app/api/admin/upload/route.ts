@@ -3,12 +3,6 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const password = request.headers.get('X-Admin-Password')
-    
-    if (password !== process.env.ADMIN_PASSWORD) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const formData = await request.formData()
     const phone = formData.get('phone') as string
     const name = formData.get('name') as string

@@ -16,11 +16,9 @@ import {
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 
-interface AnalyticsTabProps {
-  password: string
-}
+interface AnalyticsTabProps {}
 
-export function AnalyticsTab({ password }: AnalyticsTabProps) {
+export function AnalyticsTab() {
   const { phase, timeRemaining, votingStartTime } = useContestPhase()
   const [stats, setStats] = useState<{ totalEntries: number; totalVotes: number }>({
     totalEntries: 0,
@@ -49,7 +47,7 @@ export function AnalyticsTab({ password }: AnalyticsTabProps) {
   }
 
   const loadLeadingCandidate = async () => {
-    const result = await getLeadingCandidate(password)
+    const result = await getLeadingCandidate()
     if (result.data) {
       setLeadingCandidate(result.data)
     }

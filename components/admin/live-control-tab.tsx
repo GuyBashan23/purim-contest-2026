@@ -23,14 +23,12 @@ import { useRouter } from 'next/navigation'
 import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
 
 interface LiveControlTabProps {
-  password: string
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
   onStatsUpdate: () => void
 }
 
 export function LiveControlTab({
-  password,
   isLoading,
   setIsLoading,
   onStatsUpdate,
@@ -65,7 +63,7 @@ export function LiveControlTab({
     setIsLoading(true)
     // Convert local datetime to ISO string
     const isoString = new Date(votingTime).toISOString()
-    const result = await updateVotingStartTime(isoString, password)
+    const result = await updateVotingStartTime(isoString)
 
     if (result?.error) {
       toast({
@@ -85,17 +83,8 @@ export function LiveControlTab({
   }
 
   const handleSetPhase = async (newPhase: 'UPLOAD' | 'VOTING' | 'FINALS' | 'ENDED') => {
-    if (!password || password.length === 0) {
-      toast({
-        title: 'שגיאה',
-        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
-        variant: 'destructive',
-      })
-      return
-    }
-
     setIsLoading(true)
-    const result = await setAppPhase(newPhase, password)
+    const result = await setAppPhase(newPhase)
     if (result?.error) {
       toast({
         title: 'שגיאה',
@@ -114,20 +103,11 @@ export function LiveControlTab({
   }
 
   const handleTriggerFinals = async () => {
-    if (!password || password.length === 0) {
-      toast({
-        title: 'שגיאה',
-        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
-        variant: 'destructive',
-      })
-      return
-    }
-
     if (!confirm('האם אתה בטוח שברצונך להתחיל את שלב הגמר? זה יבחר את 3 המובילים.')) {
       return
     }
     setIsLoading(true)
-    const result = await triggerFinals(password)
+    const result = await triggerFinals()
     if (result?.error) {
       toast({
         title: 'שגיאה',
@@ -146,20 +126,11 @@ export function LiveControlTab({
   }
 
   const handleReset = async () => {
-    if (!password || password.length === 0) {
-      toast({
-        title: 'שגיאה',
-        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
-        variant: 'destructive',
-      })
-      return
-    }
-
     if (!confirm('⚠️ אזהרה: האם אתה בטוח שברצונך לאפס את כל הנתונים? פעולה זו לא ניתנת לביטול!')) {
       return
     }
     setIsLoading(true)
-    const result = await resetContest(password)
+    const result = await resetContest()
     if (result?.error) {
       toast({
         title: 'שגיאה',
@@ -167,7 +138,7 @@ export function LiveControlTab({
         variant: 'destructive',
       })
     } else {
-      await setAppPhase('UPLOAD', password)
+      await setAppPhase('UPLOAD')
       toast({
         title: 'הצלחה',
         description: 'התחרות אופסה',

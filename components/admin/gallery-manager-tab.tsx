@@ -16,14 +16,12 @@ import type { Entry } from '@/components/costume-gallery'
 import { ManualUploadModal } from '@/components/admin/manual-upload-modal'
 
 interface GalleryManagerTabProps {
-  password: string
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
   onStatsUpdate: () => void
 }
 
 export function GalleryManagerTab({
-  password,
   isLoading,
   setIsLoading,
   onStatsUpdate,
@@ -45,7 +43,7 @@ export function GalleryManagerTab({
   }, [])
 
   const loadEntries = async () => {
-    const result = await getAllEntries(password)
+    const result = await getAllEntries()
     if (result.data) {
       setEntries(result.data)
     }
@@ -55,7 +53,7 @@ export function GalleryManagerTab({
     if (!selectedEntry) return
 
     setIsLoading(true)
-    const result = await deleteEntry(selectedEntry.id, password)
+    const result = await deleteEntry(selectedEntry.id)
 
     if (result?.error) {
       toast({
@@ -86,8 +84,7 @@ export function GalleryManagerTab({
         name: editForm.name,
         costume_title: editForm.costume_title,
         description: editForm.description || undefined,
-      },
-      password
+      }
     )
 
     if (result?.error) {
@@ -125,7 +122,7 @@ export function GalleryManagerTab({
 
   const handleGenerateMock = async () => {
     setIsGenerating(true)
-    const result = await generateMockData(40, password)
+    const result = await generateMockData(40)
 
     if (result?.error) {
       toast({
@@ -150,7 +147,7 @@ export function GalleryManagerTab({
     }
 
     setIsClearing(true)
-    const result = await clearMockData(password)
+    const result = await clearMockData()
 
     if (result?.error) {
       toast({
@@ -406,7 +403,6 @@ export function GalleryManagerTab({
           loadEntries()
           onStatsUpdate()
         }}
-        password={password}
       />
     </div>
   )

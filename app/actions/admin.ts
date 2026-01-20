@@ -4,21 +4,8 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function updateVotingStartTime(
-  votingStartTime: string,
-  password: string
+  votingStartTime: string
 ) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in updateVotingStartTime')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
-
   const supabase = createServiceRoleClient()
 
   const { data: settingsData } = await supabase
@@ -47,19 +34,7 @@ export async function updateVotingStartTime(
   return { success: true }
 }
 
-export async function deleteEntry(entryId: string, password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in deleteEntry')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
-
+export async function deleteEntry(entryId: string) {
   const supabase = createServiceRoleClient()
 
   // Get entry to find image URL
@@ -133,21 +108,8 @@ export async function deleteEntry(entryId: string, password: string) {
 
 export async function updateEntry(
   entryId: string,
-  updates: { name?: string; costume_title?: string; description?: string },
-  password: string
+  updates: { name?: string; costume_title?: string; description?: string }
 ) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in updateEntry')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
-
   const supabase = createServiceRoleClient()
 
   const { error } = await supabase
@@ -164,19 +126,7 @@ export async function updateEntry(
   return { success: true }
 }
 
-export async function getAllEntries(password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.', data: [] }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in getAllEntries')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.', data: [] }
-  }
-
+export async function getAllEntries() {
   const supabase = createServiceRoleClient()
 
   const { data, error } = await supabase
@@ -191,19 +141,7 @@ export async function getAllEntries(password: string) {
   return { data: data || [] }
 }
 
-export async function getLeadingCandidate(password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.', data: null }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in getLeadingCandidate')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.', data: null }
-  }
-
+export async function getLeadingCandidate() {
   const supabase = createServiceRoleClient()
 
   const { data, error } = await supabase

@@ -7,11 +7,7 @@ import { revalidatePath } from 'next/cache'
 /**
  * Generate mock participants for demo mode
  */
-export async function generateMockData(count: number = 40, password: string) {
-  if (password !== process.env.ADMIN_PASSWORD) {
-    return { error: 'Unauthorized' }
-  }
-
+export async function generateMockData(count: number = 40) {
   const supabase = createServiceRoleClient()
   const participants = generateMockParticipants(count)
 
@@ -72,11 +68,7 @@ export async function generateMockData(count: number = 40, password: string) {
 /**
  * Clear all mock data (entries with phone numbers starting with 055-0000)
  */
-export async function clearMockData(password: string) {
-  if (password !== process.env.ADMIN_PASSWORD) {
-    return { error: 'Unauthorized' }
-  }
-
+export async function clearMockData() {
   const supabase = createServiceRoleClient()
 
   try {

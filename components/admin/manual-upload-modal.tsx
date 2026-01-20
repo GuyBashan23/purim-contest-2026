@@ -14,14 +14,12 @@ interface ManualUploadModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  password: string
 }
 
 export function ManualUploadModal({
   isOpen,
   onClose,
   onSuccess,
-  password,
 }: ManualUploadModalProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -162,7 +160,6 @@ export function ManualUploadModal({
       const response = await fetch('/api/admin/upload', {
         method: 'POST',
         headers: {
-          'X-Admin-Password': password,
         },
         body: formDataToSend,
       })
