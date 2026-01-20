@@ -38,13 +38,28 @@ export function createServiceRoleClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !key) {
-    throw new Error('Missing required Supabase environment variables. Please check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.')
+    const missing = []
+    if (!url) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+    if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+    throw new Error(`Missing required Supabase environment variables: ${missing.join(', ')}. Please check your environment variables.`)
   }
 
-  return createClient(url, key, {
+  // Verify that we're using service role key (should start with eyJ and be very long)
+  if (key.length < 200) {
+    console.warn('Warning: SUPABASE_SERVICE_ROLE_KEY seems too short. Make sure you are using the service_role key, not the anon key.')
+  }
+
+  const client = createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   })
+
+  // Log that service role client is being used (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Service Role Client] Created with service role key (RLS bypassed)')
+  }
+
+  return client
 }

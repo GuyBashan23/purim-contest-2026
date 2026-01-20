@@ -488,15 +488,24 @@ export async function setAppPhase(phase: AppPhase, password: string) {
         return { error: `שגיאה ביצירת הגדרות אפליקציה: ${insertError.message}` }
       }
     } else {
-      const { error: updateError } = await supabase
+      console.log('[setAppPhase] Updating app_settings with id:', settingsData.id, 'updates:', updates)
+      const { error: updateError, data: updateData } = await supabase
         .from('app_settings')
         .update(updates)
         .eq('id', settingsData.id)
+        .select()
 
       if (updateError) {
-        console.error('Error updating app_settings:', updateError)
-        return { error: `שגיאה בעדכון הגדרות אפליקציה: ${updateError.message}` }
+        console.error('[setAppPhase] Error updating app_settings:', {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint
+        })
+        return { error: `שגיאה בעדכון הגדרות אפליקציה: ${updateError.message} (Code: ${updateError.code || 'N/A'})` }
       }
+      
+      console.log('[setAppPhase] Successfully updated app_settings:', updateData)
     }
 
     // Also update contest_state for backward compatibility
