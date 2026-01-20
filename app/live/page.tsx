@@ -259,7 +259,7 @@ export default function LivePage() {
                   .from('entries')
                   .select('id, name, costume_title, image_url')
                   .order('created_at', { ascending: false })
-                  .limit(1)
+                  .limit(5) // Check last 5 entries to catch any we might have missed
                 
                 if (error) {
                   console.error('❌ Polling error:', error)
@@ -267,15 +267,22 @@ export default function LivePage() {
                 }
                 
                 if (data && data.length > 0) {
-                  const latestEntry = data[0]
-                  const currentCount = entries.length
-                  
-                  // Check if this is a new entry we haven't seen
-                  const exists = entries.some(e => e.id === latestEntry.id)
-                  
-                  if (!exists && latestEntry.image_url) {
+                  // Check each entry - only process ones we haven't notified about
+                  for (const latestEntry of data) {
+                    // Skip if we already notified about this entry
+                    if (notifiedEntriesRef.current.has(latestEntry.id)) {
+                      continue
+                    }
+                    
+                    // Skip if entry doesn't have image_url
+                    if (!latestEntry.image_url) {
+                      continue
+                    }
+                    
+                    // This is a new entry we haven't seen - process it
                     console.log('🔄 Polling detected new entry:', latestEntry)
                     handleNewEntry(latestEntry as Entry)
+                    break // Only process one new entry per polling cycle
                   }
                 }
               } catch (pollError) {
@@ -348,18 +355,20 @@ export default function LivePage() {
 
       console.log(`✅ Fetched ${validEntries.length} valid entries`)
       
-      // Check if there are new entries
+      // Check if there are new entries (but don't trigger notifications here - let polling handle it)
+      // This is just for initial load and updates
       const previousCount = entries.length
       if (validEntries.length > previousCount) {
         const newEntries = validEntries.slice(0, validEntries.length - previousCount)
-        console.log(`🆕 Found ${newEntries.length} new entries via polling`)
+        console.log(`🆕 Found ${newEntries.length} new entries`)
         
-        // Process new entries (oldest first to maintain order)
-        for (const newEntry of newEntries.reverse()) {
-          if (!entries.some(e => e.id === newEntry.id)) {
-            console.log('🔄 Processing new entry from polling:', newEntry)
-            handleNewEntry(newEntry as Entry)
+        // Mark them as notified if they're already in the notified set (from initial load)
+        for (const newEntry of newEntries) {
+          if (notifiedEntriesRef.current.has(newEntry.id)) {
+            continue
           }
+          // Only notify if this is a truly new entry (not from initial load)
+          // The polling will handle new entries after initial load
         }
       }
       
@@ -477,70 +486,143 @@ export default function LivePage() {
       <AnimatePresence mode="wait">
         {newUploadToast.show && (
           <motion.div
-            key={`toast-${newUploadToast.name}`}
-            initial={{ opacity: 0, y: 100, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            key={`toast-${newUploadToast.name}-${Date.now()}`}
+            initial={{ opacity: 0, y: 150, scale: 0.7, rotateX: -15 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+            exit={{ opacity: 0, y: 80, scale: 0.85 }}
             transition={{ 
               type: 'spring', 
-              stiffness: 500, 
-              damping: 30,
-              duration: 0.4
+              stiffness: 400, 
+              damping: 25,
+              duration: 0.5
             }}
-            className="fixed bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none"
+            className="fixed bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none"
             style={{ 
               position: 'fixed',
-              zIndex: 9999
+              zIndex: 9999,
+              perspective: '1000px'
             }}
           >
-            <div
-              className="backdrop-blur-xl bg-black/80 border-2 border-purple-500/40 rounded-2xl px-6 py-4 md:px-8 md:py-5 lg:px-10 lg:py-6 shadow-2xl"
-              style={{
-                boxShadow:
-                  '0 8px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(236, 72, 153, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                animation: 'glow-pulse 2s ease-in-out infinite',
-              }}
+            <motion.div
+              className="relative"
+              whileHover={{ scale: 1.02 }}
+              transition={{ duration: 0.2 }}
             >
+              {/* Glow effect behind */}
               <motion.div
-                initial={{ scale: 1 }}
-                animate={{ 
-                  scale: [1, 1.02, 1],
+                className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
+                animate={{
+                  opacity: [0.3, 0.6, 0.3],
+                  scale: [1, 1.1, 1],
                 }}
                 transition={{
                   duration: 2,
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }}
-                className="flex items-center gap-3 md:gap-4"
+              />
+              
+              {/* Main notification card */}
+              <div
+                className="relative backdrop-blur-2xl bg-gradient-to-br from-black/95 via-black/90 to-black/95 border-2 border-purple-500/50 rounded-3xl px-8 py-5 md:px-10 md:py-6 lg:px-12 lg:py-7 shadow-2xl"
+                style={{
+                  boxShadow:
+                    '0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(168, 85, 247, 0.5), 0 0 60px rgba(236, 72, 153, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1)',
+                }}
               >
-                {/* Icon */}
                 <motion.div
-                  animate={{ 
-                    rotate: [0, 10, -10, 0],
-                  }}
-                  transition={{
-                    duration: 0.5,
-                    repeat: Infinity,
-                    repeatDelay: 2,
-                  }}
-                  className="text-2xl md:text-3xl lg:text-4xl"
+                  className="flex items-center gap-4 md:gap-5"
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
                 >
-                  🎭
+                  {/* Animated Icon */}
+                  <motion.div
+                    className="relative"
+                    animate={{ 
+                      rotate: [0, 15, -15, 0],
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                      repeatDelay: 1,
+                    }}
+                  >
+                    <div className="text-4xl md:text-5xl lg:text-6xl filter drop-shadow-2xl">
+                      🎭
+                    </div>
+                    {/* Sparkle effect */}
+                    <motion.div
+                      className="absolute -top-2 -right-2 text-2xl"
+                      animate={{
+                        rotate: [0, 360],
+                        scale: [0.8, 1.2, 0.8],
+                        opacity: [0.5, 1, 0.5],
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                      }}
+                    >
+                      ✨
+                    </motion.div>
+                  </motion.div>
+                  
+                  {/* Text Content */}
+                  <div className="flex flex-col">
+                    <motion.p
+                      className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black text-white drop-shadow-2xl"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3, duration: 0.4 }}
+                    >
+                      {newUploadToast.name === 'מישהו' ? (
+                        <span className="bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
+                          מישהו העלה תמונה חדשה!
+                        </span>
+                      ) : (
+                        <>
+                          <span className="bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 bg-clip-text text-transparent font-extrabold">
+                            {newUploadToast.name}
+                          </span>
+                          <span className="text-white/95 ml-2">העלה תמונה לתחרות!</span>
+                        </>
+                      )}
+                    </motion.p>
+                    
+                    {/* Subtitle */}
+                    <motion.p
+                      className="text-xs md:text-sm text-purple-300/70 mt-1"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5, duration: 0.4 }}
+                    >
+                      תמונה חדשה נוספה לגלריה
+                    </motion.p>
+                  </div>
                 </motion.div>
                 
-                {/* Text */}
-                <p className="text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-white drop-shadow-lg whitespace-nowrap">
-                  {newUploadToast.name === 'מישהו' ? (
-                    <span className="text-white/90">מישהו העלה תמונה חדשה! 🎭</span>
-                  ) : (
-                    <>
-                      <span className="text-purple-300 font-extrabold">{newUploadToast.name}</span>
-                      <span className="text-white/90"> העלה תמונה לתחרות! 🎭</span>
-                    </>
-                  )}
-                </p>
-              </motion.div>
-            </div>
+                {/* Animated border glow */}
+                <motion.div
+                  className="absolute inset-0 rounded-3xl"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.3), transparent)',
+                    backgroundSize: '200% 100%',
+                  }}
+                  animate={{
+                    backgroundPosition: ['-200% 0', '200% 0'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'linear',
+                  }}
+                />
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
