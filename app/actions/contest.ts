@@ -546,8 +546,10 @@ export async function submitSingleVote(
       if (insertError.code === '23505' || insertError.message?.includes('unique')) {
         // Check which constraint was violated
         if (insertError.message?.includes('votes_voter_phone_phase_key')) {
-          console.error('[submitSingleVote] Old constraint still exists! Migration 012 needs to be run.')
-          return { error: 'שגיאת מסד נתונים: יש להריץ מיגרציה 012 להסרת אילוץ ישן' }
+          console.error('[submitSingleVote] Old constraint still exists! Run fix_votes_constraint.sql in Supabase SQL Editor.')
+          return { 
+            error: 'שגיאת מסד נתונים: יש להריץ את הקובץ fix_votes_constraint.sql ב-Supabase SQL Editor כדי להסיר את האילוץ הישן' 
+          }
         }
         if (insertError.message?.includes('votes_voter_phone_points_phase_key')) {
           return { error: 'כבר הצבעת עם נקודות אלו' }
