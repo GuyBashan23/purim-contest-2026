@@ -35,18 +35,18 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8 xl:p-12">
-      <div className="container mx-auto max-w-7xl xl:max-w-[1400px]">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8 xl:py-12">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-6 sm:mb-8 lg:mb-10"
         >
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-2 text-white drop-shadow-lg">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-2 text-white drop-shadow-lg">
             🛠️ מרכז הבקרה
           </h1>
-          <p className="text-white/70 text-base sm:text-lg lg:text-xl">
+          <p className="text-white/70 text-base sm:text-lg lg:text-xl xl:text-2xl">
             ניהול מלא של התחרות ממקום אחד
           </p>
         </motion.div>
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8"
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 xl:gap-8 mb-6 lg:mb-8"
         >
           <Card className="glass border-slate-700 bg-slate-800/50">
             <CardContent className="p-4">
