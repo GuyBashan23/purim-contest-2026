@@ -54,6 +54,7 @@ export function AnalyticsTab() {
   }
 
   const formatTimeRemaining = () => {
+    // Use Israel timezone for all time displays
     if (!timeRemaining || timeRemaining <= 0) return 'ההצבעה נפתחה'
     
     const hours = Math.floor(timeRemaining / (1000 * 60 * 60))

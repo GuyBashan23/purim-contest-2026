@@ -21,6 +21,7 @@ import {
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
+import { formatIsraelDateTimeLocal, parseIsraelDateTimeLocal, toIsraelLocaleString } from '@/lib/utils/timezone'
 
 interface LiveControlTabProps {
   isLoading: boolean
@@ -41,12 +42,8 @@ export function LiveControlTab({
 
   useEffect(() => {
     if (votingStartTime) {
-      // Convert ISO string to local datetime-local format
-      const date = new Date(votingStartTime)
-      const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16)
-      setVotingTime(localDateTime)
+      // Convert ISO string to Israel timezone datetime-local format
+      setVotingTime(formatIsraelDateTimeLocal(votingStartTime))
     }
   }, [votingStartTime])
 
@@ -61,8 +58,8 @@ export function LiveControlTab({
     }
 
     setIsLoading(true)
-    // Convert local datetime to ISO string
-    const isoString = new Date(votingTime).toISOString()
+    // Convert Israel timezone datetime-local to ISO string
+    const isoString = parseIsraelDateTimeLocal(votingTime)
     const result = await updateVotingStartTime(isoString)
 
     if (result?.error) {
@@ -184,7 +181,7 @@ export function LiveControlTab({
           </Button>
           {votingStartTime && (
             <p className="text-sm text-white/60">
-              זמן נוכחי: {new Date(votingStartTime).toLocaleString('he-IL')}
+              זמן נוכחי: {toIsraelLocaleString(votingStartTime)}
             </p>
           )}
         </CardContent>
