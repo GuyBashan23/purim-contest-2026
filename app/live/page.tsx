@@ -139,12 +139,12 @@ export default function LivePage() {
     
     setNewUploadToast({ show: true, name: displayName })
     
-    // Clear toast after 3 seconds
+    // Clear toast after 5 seconds
     toastTimeoutRef.current = setTimeout(() => {
       console.log('🔕 Hiding toast')
       setNewUploadToast((prev) => ({ ...prev, show: false }))
       toastTimeoutRef.current = null
-    }, 3000)
+    }, 5000)
 
     // Play sound effect if available
     try {
@@ -588,7 +588,7 @@ export default function LivePage() {
                           <span className="bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 bg-clip-text text-transparent font-extrabold">
                             {newUploadToast.name}
                           </span>
-                          <span className="text-white/95 ml-2">העלה תמונה לתחרות!</span>
+                          <span className="text-white/95"> העלה תמונה לתחרות!</span>
                         </>
                       )}
                     </motion.p>
