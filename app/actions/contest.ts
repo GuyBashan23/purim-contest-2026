@@ -98,74 +98,101 @@ export async function submitEntry(
   prevState: { error?: string; success?: boolean } | null,
   formData: FormData
 ) {
-  const supabase = await createServerSupabase()
-  const supabaseAdmin = createServiceRoleClient() // Use service role for storage uploads
+  try {
+    // Validate environment variables
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables')
+      return { error: 'שגיאת הגדרת שרת. אנא פנה למנהל המערכת.', success: false }
+    }
 
-  const phone = formData.get('phone') as string
-  const name = formData.get('name') as string
-  const costumeTitle = formData.get('costume_title') as string
-  const description = formData.get('description') as string | null
-  const imageFile = formData.get('image') as File
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing SUPABASE_SERVICE_ROLE_KEY')
+      return { error: 'שגיאת הרשאות שרת. אנא פנה למנהל המערכת.', success: false }
+    }
 
-  if (!phone || !name || !costumeTitle || !imageFile) {
-    return { error: 'Missing required fields', success: false }
-  }
+    const supabase = await createServerSupabase()
+    const supabaseAdmin = createServiceRoleClient() // Use service role for storage uploads
 
-  // Check if phone already exists
-  const { data: existing } = await supabase
-    .from('entries')
-    .select('id')
-    .eq('phone', phone)
-    .single()
+    const phone = formData.get('phone') as string
+    const name = formData.get('name') as string
+    const costumeTitle = formData.get('costume_title') as string
+    const description = formData.get('description') as string | null
+    const imageFile = formData.get('image') as File
 
-  if (existing) {
-    return { error: 'מספר טלפון זה כבר נרשם', success: false }
-  }
+    if (!phone || !name || !costumeTitle || !imageFile) {
+      return { error: 'Missing required fields', success: false }
+    }
 
-  // Upload image to Supabase Storage using service role (bypasses RLS)
-  const fileExt = imageFile.name.split('.').pop()
-  const fileName = `${phone}-${Date.now()}.${fileExt}`
-  const filePath = fileName
+    // Check if phone already exists
+    const { data: existing, error: existingError } = await supabase
+      .from('entries')
+      .select('id')
+      .eq('phone', phone)
+      .single()
 
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from('costumes')
-    .upload(filePath, imageFile, {
-      cacheControl: '3600',
-      upsert: false,
+    if (existingError && existingError.code !== 'PGRST116') {
+      // PGRST116 = no rows returned, which is fine
+      console.error('Error checking existing entry:', existingError)
+      return { error: 'שגיאה בבדיקת רשומה קיימת. אנא נסה שוב.', success: false }
+    }
+
+    if (existing) {
+      return { error: 'מספר טלפון זה כבר נרשם', success: false }
+    }
+
+    // Upload image to Supabase Storage using service role (bypasses RLS)
+    const fileExt = imageFile.name.split('.').pop()
+    const fileName = `${phone}-${Date.now()}.${fileExt}`
+    const filePath = fileName
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('costumes')
+      .upload(filePath, imageFile, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      // Return more detailed error message
+      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
+        return { error: 'שגיאה: Bucket "costumes" לא נמצא. אנא צור אותו ב-Supabase Dashboard → Storage', success: false }
+      }
+      if (uploadError.message?.includes('new row violates row-level security') || uploadError.message?.includes('permission')) {
+        return { error: 'שגיאה: אין הרשאות להעלאת תמונות. אנא בדוק את הגדרות ה-Storage Policies', success: false }
+      }
+      return { error: `שגיאה בהעלאת התמונה: ${uploadError.message}`, success: false }
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabaseAdmin.storage.from('costumes').getPublicUrl(filePath)
+
+    // Insert entry using regular client (respects RLS)
+    const { error: insertError } = await supabase.from('entries').insert({
+      phone,
+      name,
+      costume_title: costumeTitle,
+      description,
+      image_url: publicUrl,
     })
 
-  if (uploadError) {
-    console.error('Upload error:', uploadError)
-    // Return more detailed error message
-    if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
-      return { error: 'שגיאה: Bucket "costumes" לא נמצא. אנא צור אותו ב-Supabase Dashboard → Storage', success: false }
+    if (insertError) {
+      console.error('Insert error:', insertError)
+      return { error: insertError.message, success: false }
     }
-    if (uploadError.message?.includes('new row violates row-level security') || uploadError.message?.includes('permission')) {
-      return { error: 'שגיאה: אין הרשאות להעלאת תמונות. אנא בדוק את הגדרות ה-Storage Policies', success: false }
+
+    revalidatePath('/')
+    return { success: true, error: undefined }
+  } catch (error: any) {
+    // Catch any unexpected errors
+    console.error('Unexpected error in submitEntry:', error)
+    return { 
+      error: error?.message || 'שגיאה בלתי צפויה. אנא נסה שוב או פנה למנהל המערכת.', 
+      success: false 
     }
-    return { error: `שגיאה בהעלאת התמונה: ${uploadError.message}`, success: false }
   }
-
-  // Get public URL
-  const {
-    data: { publicUrl },
-  } = supabaseAdmin.storage.from('costumes').getPublicUrl(filePath)
-
-  // Insert entry using regular client (respects RLS)
-  const { error: insertError } = await supabase.from('entries').insert({
-    phone,
-    name,
-    costume_title: costumeTitle,
-    description,
-    image_url: publicUrl,
-  })
-
-  if (insertError) {
-    return { error: insertError.message, success: false }
-  }
-
-  revalidatePath('/')
-  return { success: true, error: undefined }
 }
 
 export async function submitVote(

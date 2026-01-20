@@ -56,12 +56,20 @@
     @apply border-border;
   }
   body {
-    @apply bg-gradient-to-br from-purple-900 via-red-900 to-purple-800 text-foreground;
+    @apply bg-gradient-to-br from-purple-900 via-red-900 to-purple-800 text-white;
     background-attachment: fixed;
-    min-height: 100vh;
+    min-height: 100dvh; /* Use dynamic viewport height for mobile */
     font-family: 'Heebo', 'Rubik', sans-serif;
     direction: rtl;
     position: relative;
+    color: white; /* Force white text */
+    background-color: #1e0033; /* Dark fallback color */
+  }
+  
+  /* Ensure HTML also has dark background */
+  html {
+    background-color: #1e0033;
+    color: white;
   }
   
   /* Animated gradient mesh background */

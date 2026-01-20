@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { CountdownTimer } from '@/components/countdown-timer'
 import { useContestPhase } from '@/lib/hooks/use-contest-phase'
 import { TARGET_DATE } from '@/lib/config'
@@ -17,7 +17,6 @@ const FAQModal = dynamic(() => import('@/components/faq-modal').then((mod) => mo
 })
 
 export default function HomePage() {
-  const router = useRouter()
   const { phase, isVotingOpen } = useContestPhase()
   const [isFAQOpen, setIsFAQOpen] = useState(false)
 
@@ -82,26 +81,22 @@ export default function HomePage() {
         {/* Choice Cards */}
         <div className="flex flex-col gap-6 w-full">
           {/* Participate Card */}
-          <motion.div
-            initial={{ opacity: 0, x: -100 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ type: 'spring', delay: 0.4, stiffness: 100 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/upload')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                router.push('/upload')
-              }
-            }}
-            className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group"
-            style={{
-              background: 'linear-gradient(135deg, #eb1801 0%, #FF6B35 100%)',
-            }}
+          <Link 
+            href="/upload" 
+            className="block w-full"
+            style={{ display: 'block' }}
           >
+            <motion.div
+              initial={{ opacity: 0, x: -100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring', delay: 0.4, stiffness: 100 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group w-full"
+              style={{
+                background: 'linear-gradient(135deg, #eb1801 0%, #FF6B35 100%)',
+              }}
+            >
             {/* Pulsing animation */}
             <motion.div
               animate={{
@@ -131,30 +126,27 @@ export default function HomePage() {
                 השתתף בתחרות
               </p>
             </div>
-          </motion.div>
+            </motion.div>
+          </Link>
 
           {/* Spectator Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ type: 'spring', delay: 0.5, stiffness: 100 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/gallery')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                router.push('/gallery')
-              }
-            }}
-            className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group backdrop-blur-xl"
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '2px solid rgba(255, 255, 255, 0.2)',
-            }}
+          <Link 
+            href="/gallery" 
+            className="block w-full"
+            style={{ display: 'block' }}
           >
+            <motion.div
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring', delay: 0.5, stiffness: 100 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group backdrop-blur-xl w-full"
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+              }}
+            >
             <div className="relative z-10 h-full flex flex-col items-center justify-center p-8 text-white pointer-events-none">
               <motion.div
                 whileHover={{ scale: 1.1 }}
@@ -170,7 +162,8 @@ export default function HomePage() {
                 צפה בגלריה
               </p>
             </div>
-          </motion.div>
+            </motion.div>
+          </Link>
         </div>
       </div>
 

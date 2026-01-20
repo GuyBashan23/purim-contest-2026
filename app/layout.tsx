@@ -22,10 +22,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="he" dir="rtl" className={heebo.variable}>
-      <body className={`${heebo.className} antialiased min-h-[100dvh]`}>
+    <html lang="he" dir="rtl" className={`${heebo.variable} dark`}>
+      <body className={`${heebo.className} antialiased min-h-[100dvh] bg-gradient-to-br from-purple-900 via-red-900 to-purple-800 text-white`}>
         <ErrorBoundary>
-          <div className="min-h-[100dvh] flex items-center justify-center p-4">
+          <div className="min-h-[100dvh] w-full flex items-center justify-center p-4 bg-gradient-to-br from-purple-900 via-red-900 to-purple-800">
             <div className="w-full max-w-md mx-auto relative z-10">
               {children}
             </div>
