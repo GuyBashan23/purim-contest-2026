@@ -89,6 +89,14 @@ export default function HomePage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => router.push('/upload')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                router.push('/upload')
+              }
+            }}
             className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group"
             style={{
               background: 'linear-gradient(135deg, #eb1801 0%, #FF6B35 100%)',
@@ -105,10 +113,10 @@ export default function HomePage() {
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
-              className="absolute inset-0 bg-white/20 rounded-3xl"
+              className="absolute inset-0 bg-white/20 rounded-3xl pointer-events-none"
             />
             
-            <div className="relative z-10 h-full flex flex-col items-center justify-center p-8 text-white">
+            <div className="relative z-10 h-full flex flex-col items-center justify-center p-8 text-white pointer-events-none">
               <motion.div
                 whileHover={{ rotate: [0, -10, 10, -10, 0] }}
                 transition={{ duration: 0.5 }}
@@ -133,13 +141,21 @@ export default function HomePage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => router.push('/gallery')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                router.push('/gallery')
+              }
+            }}
             className="relative h-[40vh] min-h-[280px] rounded-3xl overflow-hidden cursor-pointer shadow-2xl group backdrop-blur-xl"
             style={{
               background: 'rgba(255, 255, 255, 0.1)',
               border: '2px solid rgba(255, 255, 255, 0.2)',
             }}
           >
-            <div className="relative z-10 h-full flex flex-col items-center justify-center p-8 text-white">
+            <div className="relative z-10 h-full flex flex-col items-center justify-center p-8 text-white pointer-events-none">
               <motion.div
                 whileHover={{ scale: 1.1 }}
                 transition={{ duration: 0.3 }}
