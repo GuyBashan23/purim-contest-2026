@@ -511,6 +511,23 @@ export async function submitSingleVote(
 
     // STEP B: Remove any existing vote by THIS user with THIS EXACT SCORE on ANY entry (Steal Rule)
     // This handles the case where user is "stealing" their 8/10/12 points from another entry
+    // First, get the entry_id of the vote we're about to delete (for UI feedback)
+    const { data: existingVoteWithPoints, error: findError } = await supabase
+      .from('votes')
+      .select('entry_id')
+      .eq('voter_phone', voterPhone)
+      .eq('points', points)
+      .eq('phase', currentPhase)
+      .maybeSingle()
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('[submitSingleVote] Error finding existing vote with same points:', findError)
+      return { error: 'שגיאה בחיפוש הצבעה קודמת' }
+    }
+
+    const previousEntryId = existingVoteWithPoints?.entry_id || null
+
+    // Now delete the existing vote with same points
     const { error: deletePointsError, count: deletedPointsCount } = await supabase
       .from('votes')
       .delete()
@@ -525,7 +542,7 @@ export async function submitSingleVote(
     }
 
     if (deletedPointsCount && deletedPointsCount > 0) {
-      console.log(`[submitSingleVote] Deleted ${deletedPointsCount} existing vote(s) with same points`)
+      console.log(`[submitSingleVote] Deleted ${deletedPointsCount} existing vote(s) with same points from entry ${previousEntryId}`)
     }
 
     // STEP C: Insert the new vote
@@ -580,7 +597,10 @@ export async function submitSingleVote(
     return { 
       success: true, 
       moved: (deletedPointsCount && deletedPointsCount > 0) || false,
-      updated: (deletedEntryCount && deletedEntryCount > 0) || false
+      updated: (deletedEntryCount && deletedEntryCount > 0) || false,
+      previousEntryId: previousEntryId || undefined, // Entry ID that lost the vote (for UI update)
+      points: points,
+      entryId: entryId
     }
   } catch (error: any) {
     console.error('[submitSingleVote] Unexpected error:', error)

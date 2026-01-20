@@ -240,17 +240,27 @@ export function CostumeGallery({
       // If vote was moved, remove it from previous entry and update its score
       if (result.moved && result.previousEntryId) {
         delete updatedVotes[result.previousEntryId]
+        const movedPoints = result.points || points
         // Update the previous entry's score (subtract the points)
         setEntries((prevEntries) => {
           const updated = prevEntries.map((entry) => {
             if (entry.id === result.previousEntryId) {
-              const newScore = Math.max(0, (entry.total_score || 0) - points)
+              const newScore = Math.max(0, (entry.total_score || 0) - movedPoints)
               console.log(`[handleVote] Moving vote: Entry ${entry.id} score ${entry.total_score} -> ${newScore}`)
               return { ...entry, total_score: newScore }
             }
             return entry
           })
           return updated
+        })
+        
+        // Also update selectedEntry if it's the previous entry
+        setSelectedEntry((prev) => {
+          if (prev && prev.id === result.previousEntryId) {
+            const newScore = Math.max(0, (prev.total_score || 0) - movedPoints)
+            return { ...prev, total_score: newScore }
+          }
+          return prev
         })
       }
       
