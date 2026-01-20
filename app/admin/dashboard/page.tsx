@@ -32,20 +32,54 @@ export default function AdminDashboard() {
     }
   }, [isAuthenticated])
 
-  const handleLogin = () => {
-    const isValid = password === 'admin' || password.length > 0
-    if (isValid) {
-      setIsAuthenticated(true)
-      toast({
-        title: 'ברוך הבא',
-        description: 'נכנסת למרכז הבקרה',
-      })
-    } else {
+  const handleLogin = async () => {
+    if (!password || password.length === 0) {
       toast({
         title: 'שגיאה',
-        description: 'סיסמה שגויה',
+        description: 'אנא הזן סיסמה',
         variant: 'destructive',
       })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      // Validate password with server
+      const response = await fetch('/api/admin/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      })
+
+      const data = await response.json()
+
+      if (data.valid) {
+        setIsAuthenticated(true)
+        toast({
+          title: 'ברוך הבא',
+          description: 'נכנסת למרכז הבקרה',
+        })
+      } else {
+        const errorMsg = data.error === 'Unauthorized' 
+          ? 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.'
+          : data.error || 'סיסמה שגויה'
+        toast({
+          title: 'שגיאה',
+          description: errorMsg,
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      toast({
+        title: 'שגיאה',
+        description: 'שגיאה בבדיקת הסיסמה. נסה שוב.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -86,8 +120,9 @@ export default function AdminDashboard() {
                   onClick={handleLogin} 
                   className="w-full bg-gradient-to-r from-[#eb1801] to-[#FF6B35]" 
                   size="lg"
+                  disabled={isLoading}
                 >
-                  התחבר
+                  {isLoading ? 'בודק...' : 'התחבר'}
                 </Button>
               </div>
             </CardContent>

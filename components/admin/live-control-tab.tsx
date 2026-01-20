@@ -85,6 +85,15 @@ export function LiveControlTab({
   }
 
   const handleSetPhase = async (newPhase: 'UPLOAD' | 'VOTING' | 'FINALS' | 'ENDED') => {
+    if (!password || password.length === 0) {
+      toast({
+        title: 'שגיאה',
+        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setIsLoading(true)
     const result = await setAppPhase(newPhase, password)
     if (result?.error) {
