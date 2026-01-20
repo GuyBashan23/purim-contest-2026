@@ -35,18 +35,18 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 p-4 md:p-8">
-      <div className="container mx-auto max-w-7xl">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8 xl:p-12">
+      <div className="container mx-auto max-w-7xl xl:max-w-[1400px]">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-6 sm:mb-8 lg:mb-10"
         >
-          <h1 className="text-5xl font-bold mb-2 text-white drop-shadow-lg">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-2 text-white drop-shadow-lg">
             🛠️ מרכז הבקרה
           </h1>
-          <p className="text-white/70 text-lg">
+          <p className="text-white/70 text-base sm:text-lg lg:text-xl">
             ניהול מלא של התחרות ממקום אחד
           </p>
         </motion.div>
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8"
         >
           <Card className="glass border-slate-700 bg-slate-800/50">
             <CardContent className="p-4">
@@ -89,18 +89,21 @@ export default function AdminDashboard() {
           transition={{ delay: 0.2 }}
         >
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full justify-start mb-6">
-              <TabsTrigger value="live" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                בקרה חיה
+            <TabsList className="w-full justify-start mb-4 sm:mb-6 lg:mb-8 h-auto">
+              <TabsTrigger value="live" className="flex items-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 text-sm sm:text-base lg:text-lg">
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                <span className="hidden sm:inline">בקרה חיה</span>
+                <span className="sm:hidden">בקרה</span>
               </TabsTrigger>
-              <TabsTrigger value="gallery" className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                ניהול גלריה
+              <TabsTrigger value="gallery" className="flex items-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 text-sm sm:text-base lg:text-lg">
+                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                <span className="hidden sm:inline">ניהול גלריה</span>
+                <span className="sm:hidden">גלריה</span>
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                אנליטיקה
+              <TabsTrigger value="analytics" className="flex items-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 text-sm sm:text-base lg:text-lg">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                <span className="hidden sm:inline">אנליטיקה</span>
+                <span className="sm:hidden">אנליטיקה</span>
               </TabsTrigger>
             </TabsList>
 

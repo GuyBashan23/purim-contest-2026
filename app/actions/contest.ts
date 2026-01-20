@@ -415,20 +415,8 @@ export async function checkVoterEligibility(phone: string, phase: 1 | 2) {
 // New app_settings management functions
 export type AppPhase = 'UPLOAD' | 'VOTING' | 'FINALS' | 'ENDED'
 
-export async function setAppPhase(phase: AppPhase, password: string) {
+export async function setAppPhase(phase: AppPhase) {
   try {
-    const adminPassword = process.env.ADMIN_PASSWORD
-    
-    if (!adminPassword) {
-      console.error('ADMIN_PASSWORD environment variable is not set')
-      return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-    }
-    
-    if (password !== adminPassword) {
-      console.error('Password mismatch - provided password does not match ADMIN_PASSWORD')
-      return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-    }
-
     // Use Service Role client to bypass RLS
     const supabase = createServiceRoleClient()
     const now = new Date().toISOString()
