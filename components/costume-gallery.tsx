@@ -92,9 +92,12 @@ export function CostumeGallery({
   useEffect(() => {
     fetchEntries()
 
+    let pollingInterval: NodeJS.Timeout | null = null
+    let lastFetchTime = Date.now()
+
     // Subscribe to real-time updates for entries (score changes)
     const entriesChannel = supabase
-      .channel('entries_changes_gallery')
+      .channel('entries_changes_gallery_' + Date.now())
       .on(
         'postgres_changes',
         {
@@ -104,18 +107,22 @@ export function CostumeGallery({
         },
         (payload) => {
           console.log('📊 Entry score updated via realtime:', payload)
+          lastFetchTime = Date.now() // Reset polling timer
+          
           // Update the specific entry in local state
           if (payload.new && payload.new.id) {
             const newScore = payload.new.total_score || 0
             console.log(`[Realtime] Updating entry ${payload.new.id} score to ${newScore}`)
             
             setEntries((prevEntries) => {
-              const updated = prevEntries.map((entry) =>
-                entry.id === payload.new.id
-                  ? { ...entry, total_score: newScore }
-                  : entry
-              )
-              console.log('[Realtime] Updated entries:', updated.find(e => e.id === payload.new.id))
+              const updated = prevEntries.map((entry) => {
+                if (entry.id === payload.new.id) {
+                  const updatedEntry = { ...entry, total_score: newScore }
+                  console.log(`[Realtime] Updated entry ${entry.id}: ${entry.total_score} -> ${newScore}`)
+                  return updatedEntry
+                }
+                return entry
+              })
               return updated
             })
             
@@ -123,7 +130,7 @@ export function CostumeGallery({
             setSelectedEntry((prev) => {
               if (prev && prev.id === payload.new.id) {
                 const updated = { ...prev, total_score: newScore }
-                console.log('[Realtime] Updated selectedEntry:', updated)
+                console.log(`[Realtime] Updated selectedEntry: ${prev.total_score} -> ${newScore}`)
                 return updated
               }
               return prev
@@ -148,11 +155,32 @@ export function CostumeGallery({
           console.log('✅ Successfully subscribed to entries realtime updates')
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Realtime subscription error - check Supabase Realtime is enabled')
+          console.log('📖 Enable Realtime in Supabase Dashboard:')
+          console.log('   1. Go to Database → Replication')
+          console.log('   2. Find "entries" table')
+          console.log('   3. Toggle "Enable Realtime" ON')
+        } else {
+          console.warn(`⚠️ Realtime subscription status: ${status}`)
         }
       })
 
+    // Polling fallback: Refresh entries every 2 seconds if no realtime updates
+    // This ensures scores are updated even if realtime fails
+    pollingInterval = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastFetchTime
+      // Only poll if we haven't received an update in the last 3 seconds
+      if (timeSinceLastUpdate > 3000) {
+        console.log('[Polling] No realtime updates, refreshing entries...')
+        fetchEntries()
+        lastFetchTime = Date.now()
+      }
+    }, 2000)
+
     return () => {
       entriesChannel.unsubscribe()
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
     }
   }, [])
 
@@ -344,14 +372,19 @@ export function CostumeGallery({
       // This ensures we get the actual calculated score from the database trigger
       // We do multiple refreshes to ensure the score is updated
       setTimeout(async () => {
-        console.log('[handleVote] First refresh from DB...')
+        console.log('[handleVote] First refresh from DB (500ms)...')
         await fetchEntries()
       }, 500)
       
       setTimeout(async () => {
-        console.log('[handleVote] Second refresh from DB (backup)...')
+        console.log('[handleVote] Second refresh from DB (1000ms)...')
         await fetchEntries()
-      }, 1500)
+      }, 1000)
+      
+      setTimeout(async () => {
+        console.log('[handleVote] Third refresh from DB (2000ms - final)...')
+        await fetchEntries()
+      }, 2000)
 
       // Auto-close modal after 1 second
       setTimeout(() => {
