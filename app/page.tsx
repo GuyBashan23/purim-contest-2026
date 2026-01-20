@@ -21,7 +21,7 @@ export default function HomePage() {
   const [isFAQOpen, setIsFAQOpen] = useState(false)
 
   return (
-    <div className="w-full min-h-screen flex flex-col relative">
+    <div className="w-full min-h-screen flex flex-col relative z-10 pointer-events-auto">
       {/* FAQ Help Button - Fixed Position */}
       <motion.button
         initial={{ opacity: 0, scale: 0 }}

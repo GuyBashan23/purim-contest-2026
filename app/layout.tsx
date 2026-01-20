@@ -23,10 +23,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} dark`}>
-      <body className={`${heebo.className} antialiased`} style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)', color: 'white', minHeight: '100dvh' }}>
+      <body className={`${heebo.className} antialiased`} style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)', color: 'white', minHeight: '100dvh', position: 'relative', zIndex: 0 }}>
         <ErrorBoundary>
-          <div className="min-h-[100dvh] w-full flex items-center justify-center p-4" style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)' }}>
-            <div className="w-full max-w-md mx-auto relative z-10">
+          <div className="min-h-[100dvh] w-full flex items-center justify-center p-4 relative z-10" style={{ backgroundColor: '#1e0033', background: 'linear-gradient(135deg, #581c87 0%, #991b1b 50%, #6b21a8 100%)', pointerEvents: 'auto' }}>
+            <div className="w-full max-w-md mx-auto relative z-10 pointer-events-auto">
               {children}
             </div>
           </div>
