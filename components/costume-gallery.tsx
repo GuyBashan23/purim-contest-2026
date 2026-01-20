@@ -301,21 +301,31 @@ export function CostumeGallery({
       // Optimistically update the selected entry's score in local state immediately
       // This gives instant feedback while the database trigger updates the actual score
       if (selectedEntry) {
-        // Calculate new score: current score + points
-        // If vote was moved, we already subtracted from previous entry
+        // Calculate new score correctly:
+        // 1. If user already voted on this entry, we need to subtract the old vote first
+        // 2. Then add the new points
+        // Use updatedVotes (which already has the new vote) to get the previous vote
         const currentScore = selectedEntry.total_score || 0
-        const newScore = currentScore + points
+        // Before we added the new vote, check what the previous vote was
+        const previousVoteOnThisEntry = userVotes[selectedEntry.id] || 0
+        const newScore = currentScore - previousVoteOnThisEntry + points
         
-        console.log(`[handleVote] Updating score for entry ${selectedEntry.id}: ${currentScore} + ${points} = ${newScore}`)
+        console.log(`[handleVote] Updating score for entry ${selectedEntry.id}:`)
+        console.log(`  Current score: ${currentScore}`)
+        console.log(`  Previous vote on this entry: ${previousVoteOnThisEntry}`)
+        console.log(`  New points: ${points}`)
+        console.log(`  Calculated new score: ${currentScore} - ${previousVoteOnThisEntry} + ${points} = ${newScore}`)
         
         // Update in entries list immediately
         setEntries((prevEntries) => {
-          const updated = prevEntries.map((entry) =>
-            entry.id === selectedEntry.id
-              ? { ...entry, total_score: newScore }
-              : entry
-          )
-          console.log('[handleVote] Updated entries list:', updated.find(e => e.id === selectedEntry.id))
+          const updated = prevEntries.map((entry) => {
+            if (entry.id === selectedEntry.id) {
+              const updatedEntry = { ...entry, total_score: newScore }
+              console.log(`[handleVote] Updated entry ${entry.id} in list: ${entry.total_score} -> ${newScore}`)
+              return updatedEntry
+            }
+            return entry
+          })
           return updated
         })
         
@@ -323,7 +333,7 @@ export function CostumeGallery({
         setSelectedEntry((prev) => {
           if (prev && prev.id === selectedEntry.id) {
             const updated = { ...prev, total_score: newScore }
-            console.log('[handleVote] Updated selectedEntry:', updated)
+            console.log(`[handleVote] Updated selectedEntry: ${prev.total_score} -> ${newScore}`)
             return updated
           }
           return prev
@@ -332,10 +342,16 @@ export function CostumeGallery({
       
       // Force refresh entries after a short delay to sync with DB
       // This ensures we get the actual calculated score from the database trigger
+      // We do multiple refreshes to ensure the score is updated
       setTimeout(async () => {
-        console.log('[handleVote] Refreshing entries from DB...')
+        console.log('[handleVote] First refresh from DB...')
         await fetchEntries()
-      }, 800)
+      }, 500)
+      
+      setTimeout(async () => {
+        console.log('[handleVote] Second refresh from DB (backup)...')
+        await fetchEntries()
+      }, 1500)
 
       // Auto-close modal after 1 second
       setTimeout(() => {
@@ -448,7 +464,7 @@ export function CostumeGallery({
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ duration: 0.3 }}
                     >
-                      {entry.total_score || 0} נקודות
+                      {entry.total_score ?? 0} נקודות
                     </motion.div>
                   )}
                   
