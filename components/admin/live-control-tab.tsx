@@ -114,6 +114,15 @@ export function LiveControlTab({
   }
 
   const handleTriggerFinals = async () => {
+    if (!password || password.length === 0) {
+      toast({
+        title: 'שגיאה',
+        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!confirm('האם אתה בטוח שברצונך להתחיל את שלב הגמר? זה יבחר את 3 המובילים.')) {
       return
     }
@@ -137,6 +146,15 @@ export function LiveControlTab({
   }
 
   const handleReset = async () => {
+    if (!password || password.length === 0) {
+      toast({
+        title: 'שגיאה',
+        description: 'סיסמה לא נשמרה. אנא התחבר מחדש.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!confirm('⚠️ אזהרה: האם אתה בטוח שברצונך לאפס את כל הנתונים? פעולה זו לא ניתנת לביטול!')) {
       return
     }
