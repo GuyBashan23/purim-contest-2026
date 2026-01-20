@@ -289,13 +289,18 @@ export async function submitVote(
 
   // SECURITY CHECK 6: Validate phase-specific rules
   if (phase === 1) {
-    // Phase 2: Must vote for exactly 3 entries with points 12, 10, 8
-    if (votes.length !== 3) {
-      return { error: 'בשלב זה יש לבחור בדיוק 3 תחפושות' }
+    // Phase 1: Must vote for at least 1 entry with points 8, 10, or 12
+    if (votes.length === 0) {
+      return { error: 'יש לבחור לפחות תחפושת אחת' }
     }
-    const points = votes.map((v) => v.points).sort((a, b) => b - a)
-    if (points[0] !== 12 || points[1] !== 10 || points[2] !== 8) {
-      return { error: 'בשלב זה יש להעניק 12, 10 ו-8 נקודות' }
+    // Validate all points are 8, 10, or 12 (not 1)
+    for (const vote of votes) {
+      if (vote.points === 1) {
+        return { error: 'בשלב זה יש להעניק 8, 10 או 12 נקודות בלבד' }
+      }
+      if (![8, 10, 12].includes(vote.points)) {
+        return { error: 'נקודות לא תקינות. אפשרויות: 8, 10, 12' }
+      }
     }
   } else if (phase === 2) {
     // Phase 3: Must vote for exactly 1 entry with 1 point

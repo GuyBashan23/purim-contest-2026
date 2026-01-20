@@ -22,10 +22,12 @@ interface VotingSelectorProps {
   onVoteComplete?: () => void
 }
 
+type SelectedEntry = Entry & { points: number }
+
 export function VotingSelector({ phase, entries: initialEntries, onVoteComplete }: VotingSelectorProps) {
   const [phone, setPhone] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [selectedEntries, setSelectedEntries] = useState<Entry[]>([])
+  const [selectedEntries, setSelectedEntries] = useState<SelectedEntry[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showBottomSheet, setShowBottomSheet] = useState(false)
   const [selectedEntryForPoints, setSelectedEntryForPoints] = useState<Entry | null>(null)
@@ -60,25 +62,38 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
 
   const handleEntrySelect = (entry: Entry) => {
     if (phase === 1) {
-      // Phase 2: Select top 3
-      const index = selectedEntries.findIndex((e) => e.id === entry.id)
-      if (index >= 0) {
-        // Deselect
-        setSelectedEntries(selectedEntries.filter((e) => e.id !== entry.id))
-      } else if (selectedEntries.length < 3) {
-        // Select
-        setSelectedEntries([...selectedEntries, entry])
+      // Phase 1: Show modal to select points (8, 10, or 12)
+      setSelectedEntryForPoints(entry)
+      setShowBottomSheet(true)
+    } else {
+      // Phase 2: Single vote (1 point)
+      setSelectedEntries([{ ...entry, points: 1 }])
+    }
+  }
+
+  const handlePointsSelect = (points: number) => {
+    if (!selectedEntryForPoints) return
+
+    // Check if entry already selected
+    const existingIndex = selectedEntries.findIndex((e) => e.id === selectedEntryForPoints.id)
+    
+    if (existingIndex >= 0) {
+      // If same points selected, remove entry (toggle off)
+      if (selectedEntries[existingIndex].points === points) {
+        setSelectedEntries(selectedEntries.filter((e) => e.id !== selectedEntryForPoints.id))
       } else {
-        toast({
-          title: 'הגבלה',
-          description: 'ניתן לבחור עד 3 תחפושות',
-          variant: 'destructive',
-        })
+        // Update existing entry's points
+        const updated = [...selectedEntries]
+        updated[existingIndex] = { ...updated[existingIndex], points }
+        setSelectedEntries(updated)
       }
     } else {
-      // Phase 3: Single vote
-      setSelectedEntries([entry])
+      // Add new entry with selected points
+      setSelectedEntries([...selectedEntries, { ...selectedEntryForPoints, points }])
     }
+
+    setShowBottomSheet(false)
+    setSelectedEntryForPoints(null)
   }
 
   const handleSubmitVote = async () => {
@@ -96,13 +111,13 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
     let votes: Array<{ entryId: string; points: number }>
 
     if (phase === 1) {
-      // Phase 2: 12, 10, 8 points
-      votes = selectedEntries.map((entry, index) => ({
+      // Phase 1: Use points from selected entries
+      votes = selectedEntries.map((entry) => ({
         entryId: entry.id,
-        points: index === 0 ? 12 : index === 1 ? 10 : 8,
+        points: entry.points,
       }))
     } else {
-      // Phase 3: Single vote (1 point)
+      // Phase 2: Single vote (1 point)
       votes = [{ entryId: selectedEntries[0].id, points: 1 }]
     }
 
@@ -237,13 +252,17 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
 
       {phase === 1 && selectedEntries.length > 0 && (
         <div className="flex gap-4 justify-center flex-wrap">
-          {selectedEntries.map((entry, index) => (
+          {selectedEntries.map((entry) => (
             <motion.div
               key={entry.id}
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               whileHover={{ scale: 1.05 }}
-              className="relative"
+              className="relative cursor-pointer"
+              onClick={() => {
+                setSelectedEntryForPoints(entry)
+                setShowBottomSheet(true)
+              }}
             >
               <div className="glass rounded-2xl overflow-hidden shadow-xl w-48">
                 <div className="relative h-32 w-full">
@@ -267,14 +286,15 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
                     </div>
                   )}
                   <div className="absolute top-2 left-2 glass px-3 py-1 rounded-full text-xs font-bold text-white backdrop-blur-md flex items-center gap-1">
-                    {index === 0 && <span>👑</span>}
-                    {index === 1 && <span>🥈</span>}
-                    {index === 2 && <span>🥉</span>}
-                    {index === 0 ? '12 נקודות' : index === 1 ? '10 נקודות' : '8 נקודות'}
+                    {entry.points === 12 && <span>👑</span>}
+                    {entry.points === 10 && <span>🥈</span>}
+                    {entry.points === 8 && <span>🥉</span>}
+                    {entry.points} נקודות
                   </div>
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-semibold truncate text-white">{entry.costume_title}</p>
+                  <p className="text-xs text-white/70 mt-1">לחץ לשינוי נקודות</p>
                 </div>
               </div>
             </motion.div>
@@ -318,7 +338,7 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
                     {isSelected && (
                       <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                         <div className="bg-primary text-primary-foreground px-4 py-2 rounded-full font-bold">
-                          נבחר
+                          {selectedEntry.points} נקודות
                         </div>
                       </div>
                     )}
@@ -366,14 +386,11 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
       
       <VotingBottomSheet
         isOpen={showBottomSheet}
-        onClose={() => setShowBottomSheet(false)}
-        onSelect={(points) => {
-          if (selectedEntryForPoints) {
-            // Handle point selection
-            setShowBottomSheet(false)
-            setSelectedEntryForPoints(null)
-          }
+        onClose={() => {
+          setShowBottomSheet(false)
+          setSelectedEntryForPoints(null)
         }}
+        onSelect={handlePointsSelect}
       />
     </div>
   )
