@@ -85,7 +85,7 @@ export function GalleryManagerTab({
       {
         name: editForm.name,
         costume_title: editForm.costume_title,
-        description: editForm.description || null,
+        description: editForm.description || undefined,
       },
       password
     )
