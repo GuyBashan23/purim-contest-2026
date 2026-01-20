@@ -24,6 +24,8 @@ export default function LivePage() {
   const [totalCount, setTotalCount] = useState(0)
   const [newUploadToast, setNewUploadToast] = useState<{ show: boolean; name: string }>({ show: false, name: '' })
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const notifiedEntriesRef = useRef<Set<string>>(new Set()) // Track entries we've already notified about
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { toast } = useToast()
 
   // Load slideshow settings
@@ -86,6 +88,15 @@ export default function LivePage() {
       return
     }
 
+    // Check if we already notified about this entry
+    if (notifiedEntriesRef.current.has(newEntry.id)) {
+      console.log('⚠️ Already notified about this entry, skipping:', newEntry.id)
+      return
+    }
+
+    // Mark this entry as notified
+    notifiedEntriesRef.current.add(newEntry.id)
+
     // Ensure entry has all required fields for Entry interface
     const validEntry: Entry = {
       id: newEntry.id,
@@ -116,18 +127,24 @@ export default function LivePage() {
       return updated
     })
 
-    // Show toast notification
+    // Clear any existing toast timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+
+    // Show toast notification (only once per entry)
     const firstName = validEntry.name ? getFirstName(validEntry.name) : ''
     const displayName = firstName || 'מישהו'
     console.log('🔔 Showing toast notification for:', displayName)
     
     setNewUploadToast({ show: true, name: displayName })
     
-    // Clear toast after 5 seconds
-    setTimeout(() => {
+    // Clear toast after 3 seconds
+    toastTimeoutRef.current = setTimeout(() => {
       console.log('🔕 Hiding toast')
       setNewUploadToast((prev) => ({ ...prev, show: false }))
-    }, 5000)
+      toastTimeoutRef.current = null
+    }, 3000)
 
     // Play sound effect if available
     try {
@@ -456,31 +473,31 @@ export default function LivePage() {
         </motion.div>
       </motion.div>
 
-      {/* New Upload Toast Notification - Top Center */}
+      {/* New Upload Toast Notification - Bottom Center */}
       <AnimatePresence mode="wait">
         {newUploadToast.show && (
           <motion.div
             key={`toast-${newUploadToast.name}`}
-            initial={{ opacity: 0, y: -100, scale: 0.8 }}
+            initial={{ opacity: 0, y: 100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -50, scale: 0.9 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
             transition={{ 
               type: 'spring', 
               stiffness: 500, 
               damping: 30,
               duration: 0.4
             }}
-            className="fixed top-4 md:top-8 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none"
+            className="fixed bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none"
             style={{ 
               position: 'fixed',
               zIndex: 9999
             }}
           >
             <div
-              className="glass backdrop-blur-xl bg-black/40 border-2 border-purple-400/60 rounded-2xl px-6 py-4 md:px-8 md:py-5 lg:px-10 lg:py-6 shadow-2xl"
+              className="backdrop-blur-xl bg-black/80 border-2 border-purple-500/40 rounded-2xl px-6 py-4 md:px-8 md:py-5 lg:px-10 lg:py-6 shadow-2xl"
               style={{
                 boxShadow:
-                  '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(168, 85, 247, 0.5), 0 0 40px rgba(236, 72, 153, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                  '0 8px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(236, 72, 153, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                 animation: 'glow-pulse 2s ease-in-out infinite',
               }}
             >
