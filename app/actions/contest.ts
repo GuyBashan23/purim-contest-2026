@@ -6,55 +6,67 @@ import type { ContestPhase } from '@/lib/store/contest-store'
 import { revalidatePath } from 'next/cache'
 
 export async function setPhase(phase: ContestPhase, password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
+  try {
+    const adminPassword = process.env.ADMIN_PASSWORD
+    
+    if (!adminPassword) {
+      console.error('ADMIN_PASSWORD environment variable is not set')
+      return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
+    }
+    
+    if (password !== adminPassword) {
+      console.error('Password mismatch in setPhase')
+      return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
+    }
+
+    // Use Service Role client to bypass RLS
+    const supabase = createServiceRoleClient()
+    const now = new Date().toISOString()
+
+    const updates: Record<string, any> = {
+      current_phase: phase,
+      updated_at: now,
+    }
+
+    if (phase === 'voting') {
+      updates.phase_2_start_time = now
+    } else if (phase === 'finals') {
+      updates.phase_3_start_time = now
+    } else if (phase === 'winners') {
+      updates.phase_4_start_time = now
+    }
+
+    const { data: stateData, error: selectError } = await supabase
+      .from('contest_state')
+      .select('id')
+      .single()
+
+    if (selectError) {
+      console.error('Error fetching contest_state:', selectError)
+      return { error: `שגיאה בקבלת מצב תחרות: ${selectError.message}` }
+    }
+
+    if (!stateData) {
+      return { error: 'Contest state not found' }
+    }
+
+    const { error: updateError } = await supabase
+      .from('contest_state')
+      .update(updates)
+      .eq('id', stateData.id)
+
+    if (updateError) {
+      console.error('Error updating contest_state:', updateError)
+      return { error: `שגיאה בעדכון מצב תחרות: ${updateError.message}` }
+    }
+
+    revalidatePath('/')
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Unexpected error in setPhase:', error)
+    return { error: `שגיאה בלתי צפויה: ${error?.message || 'Unknown error'}` }
   }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch in setPhase')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
-
-  const supabase = createServiceRoleClient()
-  const now = new Date().toISOString()
-
-  const updates: Record<string, any> = {
-    current_phase: phase,
-    updated_at: now,
-  }
-
-  if (phase === 'voting') {
-    updates.phase_2_start_time = now
-  } else if (phase === 'finals') {
-    updates.phase_3_start_time = now
-  } else if (phase === 'winners') {
-    updates.phase_4_start_time = now
-  }
-
-  const { data: stateData } = await supabase
-    .from('contest_state')
-    .select('id')
-    .single()
-
-  if (!stateData) {
-    return { error: 'Contest state not found' }
-  }
-
-  const { error } = await supabase
-    .from('contest_state')
-    .update(updates)
-    .eq('id', stateData.id)
-
-  if (error) {
-    return { error: error.message }
-  }
-
-  revalidatePath('/')
-  revalidatePath('/admin')
-  return { success: true }
 }
 
 export async function resetContest(password: string) {
@@ -427,95 +439,119 @@ export async function checkVoterEligibility(phone: string, phase: 1 | 2) {
 export type AppPhase = 'UPLOAD' | 'VOTING' | 'FINALS' | 'ENDED'
 
 export async function setAppPhase(phase: AppPhase, password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  
-  if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable is not set')
-    return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
-  }
-  
-  if (password !== adminPassword) {
-    console.error('Password mismatch - provided password does not match ADMIN_PASSWORD')
-    return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
-  }
-
-  const supabase = createServiceRoleClient()
-  const now = new Date().toISOString()
-
-  const updates: Record<string, any> = {
-    current_phase: phase,
-    updated_at: now,
-  }
-
-  // Set voting_start_time when transitioning to VOTING
-  if (phase === 'VOTING') {
-    updates.voting_start_time = now
-  }
-
-  // Get or create app_settings row
-  const { data: settingsData } = await supabase
-    .from('app_settings')
-    .select('id')
-    .single()
-
-  if (!settingsData) {
-    // Create if doesn't exist
-    const { error: insertError } = await supabase
-      .from('app_settings')
-      .insert({ current_phase: phase, voting_start_time: phase === 'VOTING' ? now : null })
+  try {
+    const adminPassword = process.env.ADMIN_PASSWORD
     
-    if (insertError) {
-      return { error: insertError.message }
+    if (!adminPassword) {
+      console.error('ADMIN_PASSWORD environment variable is not set')
+      return { error: 'שגיאת הגדרת שרת: ADMIN_PASSWORD לא מוגדר. אנא בדוק את הגדרות ה-environment variables ב-Vercel.' }
     }
-  } else {
-    const { error } = await supabase
-      .from('app_settings')
-      .update(updates)
-      .eq('id', settingsData.id)
-
-    if (error) {
-      return { error: error.message }
-    }
-  }
-
-  // Also update contest_state for backward compatibility
-  const { data: stateData } = await supabase
-    .from('contest_state')
-    .select('id')
-    .single()
-
-  if (stateData) {
-    const phaseMap: Record<AppPhase, ContestPhase> = {
-      'UPLOAD': 'registration',
-      'VOTING': 'voting',
-      'FINALS': 'finals',
-      'ENDED': 'winners',
+    
+    if (password !== adminPassword) {
+      console.error('Password mismatch - provided password does not match ADMIN_PASSWORD')
+      return { error: 'סיסמה שגויה. אנא בדוק את הסיסמה והנסה שוב.' }
     }
 
-    const contestPhaseUpdates: Record<string, any> = {
-      current_phase: phaseMap[phase],
+    // Use Service Role client to bypass RLS
+    const supabase = createServiceRoleClient()
+    const now = new Date().toISOString()
+
+    const updates: Record<string, any> = {
+      current_phase: phase,
       updated_at: now,
     }
 
+    // Set voting_start_time when transitioning to VOTING
     if (phase === 'VOTING') {
-      contestPhaseUpdates.phase_2_start_time = now
-    } else if (phase === 'FINALS') {
-      contestPhaseUpdates.phase_3_start_time = now
-    } else if (phase === 'ENDED') {
-      contestPhaseUpdates.phase_4_start_time = now
+      updates.voting_start_time = now
     }
 
-    await supabase
-      .from('contest_state')
-      .update(contestPhaseUpdates)
-      .eq('id', stateData.id)
-  }
+    // Get or create app_settings row
+    const { data: settingsData, error: selectError } = await supabase
+      .from('app_settings')
+      .select('id')
+      .single()
 
-  revalidatePath('/')
-  revalidatePath('/admin')
-  revalidatePath('/gallery')
-  revalidatePath('/upload')
-  return { success: true }
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error fetching app_settings:', selectError)
+      return { error: `שגיאה בקבלת הגדרות אפליקציה: ${selectError.message}` }
+    }
+
+    if (!settingsData) {
+      // Create if doesn't exist
+      const { error: insertError } = await supabase
+        .from('app_settings')
+        .insert({ current_phase: phase, voting_start_time: phase === 'VOTING' ? now : null })
+      
+      if (insertError) {
+        console.error('Error inserting app_settings:', insertError)
+        return { error: `שגיאה ביצירת הגדרות אפליקציה: ${insertError.message}` }
+      }
+    } else {
+      const { error: updateError } = await supabase
+        .from('app_settings')
+        .update(updates)
+        .eq('id', settingsData.id)
+
+      if (updateError) {
+        console.error('Error updating app_settings:', updateError)
+        return { error: `שגיאה בעדכון הגדרות אפליקציה: ${updateError.message}` }
+      }
+    }
+
+    // Also update contest_state for backward compatibility
+    const { data: stateData, error: stateSelectError } = await supabase
+      .from('contest_state')
+      .select('id')
+      .single()
+
+    if (stateSelectError && stateSelectError.code !== 'PGRST116') {
+      console.error('Error fetching contest_state:', stateSelectError)
+      // Don't fail if contest_state doesn't exist, it's optional for backward compatibility
+    }
+
+    if (stateData) {
+      const phaseMap: Record<AppPhase, ContestPhase> = {
+        'UPLOAD': 'registration',
+        'VOTING': 'voting',
+        'FINALS': 'finals',
+        'ENDED': 'winners',
+      }
+
+      const contestPhaseUpdates: Record<string, any> = {
+        current_phase: phaseMap[phase],
+        updated_at: now,
+      }
+
+      if (phase === 'VOTING') {
+        contestPhaseUpdates.phase_2_start_time = now
+      } else if (phase === 'FINALS') {
+        contestPhaseUpdates.phase_3_start_time = now
+      } else if (phase === 'ENDED') {
+        contestPhaseUpdates.phase_4_start_time = now
+      }
+
+      const { error: stateUpdateError } = await supabase
+        .from('contest_state')
+        .update(contestPhaseUpdates)
+        .eq('id', stateData.id)
+
+      if (stateUpdateError) {
+        console.error('Error updating contest_state:', stateUpdateError)
+        // Don't fail the entire operation if contest_state update fails
+        // It's optional for backward compatibility
+      }
+    }
+
+    revalidatePath('/')
+    revalidatePath('/admin')
+    revalidatePath('/gallery')
+    revalidatePath('/upload')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Unexpected error in setAppPhase:', error)
+    return { error: `שגיאה בלתי צפויה: ${error?.message || 'Unknown error'}` }
+  }
 }
 
 export async function getContestStats() {
