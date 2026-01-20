@@ -145,7 +145,14 @@ export async function submitEntry(
     const fileName = `${phone}-${Date.now()}.${fileExt}`
     const filePath = fileName
 
-    const { error: uploadError } = await supabaseAdmin.storage
+    // Verify service role client is configured
+    if (!supabaseAdmin) {
+      console.error('Service role client not initialized')
+      return { error: 'שגיאת הגדרת שרת. אנא פנה למנהל המערכת.', success: false }
+    }
+
+    console.log('Attempting to upload to costumes bucket:', filePath)
+    const { error: uploadError, data: uploadData } = await supabaseAdmin.storage
       .from('costumes')
       .upload(filePath, imageFile, {
         cacheControl: '3600',
@@ -153,16 +160,27 @@ export async function submitEntry(
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
+      console.error('Upload error details:', {
+        message: uploadError.message,
+        statusCode: uploadError.statusCode,
+        error: uploadError,
+      })
+      
       // Return more detailed error message
-      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
+      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found') || uploadError.statusCode === '404') {
         return { error: 'שגיאה: Bucket "costumes" לא נמצא. אנא צור אותו ב-Supabase Dashboard → Storage', success: false }
       }
-      if (uploadError.message?.includes('new row violates row-level security') || uploadError.message?.includes('permission')) {
-        return { error: 'שגיאה: אין הרשאות להעלאת תמונות. אנא בדוק את הגדרות ה-Storage Policies', success: false }
+      if (uploadError.message?.includes('new row violates row-level security') || 
+          uploadError.message?.includes('permission') || 
+          uploadError.message?.includes('insufficient_scope') ||
+          uploadError.statusCode === '403' ||
+          uploadError.statusCode === '401') {
+        return { error: 'שגיאה: אין הרשאות להעלאת תמונות. אנא בדוק את הגדרות ה-Storage Policies ב-Supabase Dashboard → Storage → costumes → Policies', success: false }
       }
-      return { error: `שגיאה בהעלאת התמונה: ${uploadError.message}`, success: false }
+      return { error: `שגיאה בהעלאת התמונה: ${uploadError.message || 'שגיאה לא ידועה'}`, success: false }
     }
+
+    console.log('Upload successful:', uploadData)
 
     // Get public URL
     const {
