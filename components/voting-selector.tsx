@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { PartyButton } from '@/components/party-button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { VotingBottomSheet } from '@/components/voting-bottom-sheet'
 import { CostumeGallery } from '@/components/costume-gallery'
+import { SwipeDeck } from '@/components/swipe-deck'
 import { submitVote, checkVoterEligibility } from '@/app/actions/contest'
 import { validateIsraeliPhone, normalizePhone } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
@@ -15,6 +16,7 @@ import { Trophy, Award, Medal } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Entry } from '@/components/costume-gallery'
 import { useSoundEffects } from '@/lib/hooks/use-sound-effects'
+import { supabase } from '@/lib/supabase/client'
 
 interface VotingSelectorProps {
   phase: 1 | 2
@@ -31,8 +33,85 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showBottomSheet, setShowBottomSheet] = useState(false)
   const [selectedEntryForPoints, setSelectedEntryForPoints] = useState<Entry | null>(null)
+  const [swipeEntries, setSwipeEntries] = useState<Entry[]>([])
+  const [useSwipeMode, setUseSwipeMode] = useState(true) // Default to swipe mode
   const { toast } = useToast()
   const { playSound } = useSoundEffects()
+
+  // Fetch entries for swipe mode
+  useEffect(() => {
+    if (isAuthenticated && phase === 1 && useSwipeMode) {
+      fetchSwipeEntries()
+    }
+  }, [isAuthenticated, phase, useSwipeMode])
+
+  const fetchSwipeEntries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('id, name, costume_title, description, image_url, total_score')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      const validEntries = (data || []).filter((entry) => entry.image_url && entry.image_url.trim() !== '')
+      setSwipeEntries(validEntries)
+    } catch (error) {
+      console.error('Error fetching entries:', error)
+    }
+  }
+
+  const handleSwipeVote = async (entryId: string, points: number) => {
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    try {
+      const result = await submitVote(normalizePhone(phone), [{ entryId, points }], phase)
+
+      if (result?.error) {
+        toast({
+          title: 'שגיאה',
+          description: result.error,
+          variant: 'destructive',
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      // Success!
+      if (points === 12) {
+        playSound('douze-points')
+      } else {
+        playSound('confetti')
+      }
+
+      // Confetti
+      const confettiModule = await import('canvas-confetti')
+      const confetti = confettiModule.default
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+      })
+
+      toast({
+        title: 'הצבעת! 🎉',
+        description: `ניתנו ${points} נקודות`,
+      })
+    } catch (error) {
+      console.error('Vote error:', error)
+      toast({
+        title: 'שגיאה',
+        description: 'שגיאה בהצבעה. נסה שוב.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSwipeSkip = (entryId: string) => {
+    // Just skip - no action needed
+  }
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -240,15 +319,45 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
   return (
     <div className="space-y-6">
       <div className="glass rounded-2xl p-6 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-2">
-          {phase === 1 ? 'בחר את 3 התחפושות המועדפות עליך' : 'בחר את המנצח'}
-        </h2>
-        <p className="text-white/80">
-          {phase === 1
-            ? 'הראשונה תקבל 12 נקודות, השנייה 10 נקודות, והשלישית 8 נקודות'
-            : 'בחר את התחפושת הזוכה'}
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {phase === 1 ? 'בחר תחפושות ודרג אותן' : 'בחר את המנצח'}
+            </h2>
+            <p className="text-white/80">
+              {phase === 1
+                ? useSwipeMode
+                  ? 'גרור או לחץ על הכפתורים להצבעה'
+                  : 'לחץ על כל תמונה לבחירת נקודות: 8, 10, או 12. תוכל לבחור כמה תמונות שתרצה.'
+                : 'בחר את התחפושת הזוכה'}
+            </p>
+          </div>
+          {phase === 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUseSwipeMode(!useSwipeMode)}
+              className="text-white border-white/20 hover:bg-white/10"
+            >
+              {useSwipeMode ? '📋 רשימה' : '🔥 Swipe'}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Swipe Mode */}
+      {phase === 1 && useSwipeMode && isAuthenticated && (
+        <SwipeDeck
+          entries={swipeEntries}
+          onVote={handleSwipeVote}
+          onSkip={handleSwipeSkip}
+          disabled={isSubmitting}
+        />
+      )}
+
+      {/* Grid Mode */}
+      {(!useSwipeMode || phase === 2) && (
+        <>
 
       {phase === 1 && selectedEntries.length > 0 && (
         <div className="flex gap-4 justify-center flex-wrap">
@@ -392,6 +501,8 @@ export function VotingSelector({ phase, entries: initialEntries, onVoteComplete 
         }}
         onSelect={handlePointsSelect}
       />
+        </>
+      )}
     </div>
   )
 }
