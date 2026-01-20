@@ -11,14 +11,43 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 ADMIN_PASSWORD=purim2026
 ```
 
-## ✅ שלב 2: הרצת המיגרציה ב-Supabase
+## ✅ שלב 2: הרצת המיגרציות ב-Supabase
 
+**חשוב:** הרץ את כל המיגרציות בסדר הבא:
+
+### Migration 1: Initial Schema
 1. היכנס ל-[Supabase Dashboard](https://supabase.com/dashboard/project/jqmrfuoszvmjsrgjzdlf)
 2. לחץ על **SQL Editor** בתפריט השמאלי
 3. לחץ על **New Query**
 4. העתק את כל התוכן מהקובץ `supabase/migrations/001_initial_schema.sql`
 5. הדבק ב-SQL Editor
 6. לחץ **Run** (או Ctrl/Cmd + Enter)
+
+### Migration 2: App Settings
+1. לחץ על **New Query** שוב
+2. העתק את כל התוכן מהקובץ `supabase/migrations/002_app_settings.sql`
+3. הדבק ב-SQL Editor
+4. לחץ **Run**
+
+### Migration 3: Security Fixes
+1. לחץ על **New Query** שוב
+2. העתק את כל התוכן מהקובץ `supabase/migrations/003_security_fixes.sql`
+3. הדבק ב-SQL Editor
+4. לחץ **Run**
+
+### Migration 4: Storage Policies
+1. לחץ על **New Query** שוב
+2. העתק את כל התוכן מהקובץ `supabase/migrations/004_storage_policies.sql`
+3. הדבק ב-SQL Editor
+4. לחץ **Run**
+
+### Migration 5: Admin Update Policies (חדש!)
+1. לחץ על **New Query** שוב
+2. העתק את כל התוכן מהקובץ `supabase/migrations/005_admin_update_policies.sql`
+3. הדבק ב-SQL Editor
+4. לחץ **Run**
+
+**📌 הערה:** אם כבר הרצת מיגרציות קודמות, הרץ רק את המיגרציה החדשה (005_admin_update_policies.sql)
 
 ## ✅ שלב 3: יצירת Storage Bucket
 
