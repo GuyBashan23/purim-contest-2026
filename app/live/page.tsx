@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/client'
 import { getSlideshowSettings } from '@/app/actions/admin'
 import { useToast } from '@/components/ui/use-toast'
 import { Toast, ToastTitle, ToastDescription } from '@/components/ui/toast'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface Entry {
   id: string
@@ -58,57 +59,180 @@ export default function LivePage() {
     }
   }
 
-  // Fetch entries
-  useEffect(() => {
-    fetchEntries()
+  const getFirstName = useCallback((fullName: string): string => {
+    if (!fullName) return ''
+    // Extract first name (before first space)
+    const firstName = fullName.trim().split(/\s+/)[0]
+    return firstName || fullName
+  }, [])
 
-    // Subscribe to real-time updates
-    console.log('🔌 Setting up real-time subscription...')
-    const channel = supabase
-      .channel('live_wall_entries')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'entries',
-        },
-        (payload) => {
-          console.log('📥 INSERT event received:', payload)
-          const newEntry = payload.new as Entry
-          if (newEntry) {
-            handleNewEntry(newEntry)
-          } else {
-            console.warn('⚠️ No new entry data in payload:', payload)
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'app_settings',
-        },
-        () => {
-          console.log('⚙️ Settings updated, reloading...')
-          loadSettings()
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Subscription status:', status)
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to real-time updates!')
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Channel error - check Supabase Realtime is enabled')
-        }
+  const updateCurrentBatch = useCallback((entriesList: Entry[], startIndex: number) => {
+    const batch: Entry[] = []
+    for (let i = 0; i < slideshowBatchSize; i++) {
+      const index = (startIndex + i) % entriesList.length
+      if (entriesList[index]) {
+        batch.push(entriesList[index])
+      }
+    }
+    setCurrentBatch(batch)
+  }, [slideshowBatchSize])
+
+  const handleNewEntry = useCallback((newEntry: Entry) => {
+    console.log('🎉 New entry received:', newEntry)
+    
+    // Validate entry has required fields
+    if (!newEntry || !newEntry.image_url || !newEntry.id) {
+      console.warn('⚠️ Invalid entry data:', newEntry)
+      return
+    }
+
+    // Ensure entry has all required fields for Entry interface
+    const validEntry: Entry = {
+      id: newEntry.id,
+      name: newEntry.name || 'ללא שם',
+      costume_title: newEntry.costume_title || 'ללא כותרת',
+      image_url: newEntry.image_url,
+    }
+
+    // Add to entries array (prepend to show newest first)
+    setEntries((prev) => {
+      // Check if entry already exists to avoid duplicates
+      const exists = prev.some((e) => e.id === validEntry.id)
+      if (exists) {
+        console.log('⚠️ Entry already exists, skipping duplicate')
+        return prev
+      }
+      
+      const updated = [validEntry, ...prev]
+      setTotalCount(updated.length)
+      console.log('📊 Total entries after add:', updated.length)
+      
+      // Update current batch if it's the first entry
+      if (prev.length === 0) {
+        updateCurrentBatch(updated, 0)
+        setCurrentIndex(0)
+      }
+      
+      return updated
+    })
+
+    // Show toast notification
+    const firstName = validEntry.name ? getFirstName(validEntry.name) : ''
+    const displayName = firstName || 'מישהו'
+    console.log('🔔 Showing toast notification for:', displayName)
+    
+    setNewUploadToast({ show: true, name: displayName })
+    
+    // Clear toast after 5 seconds
+    setTimeout(() => {
+      console.log('🔕 Hiding toast')
+      setNewUploadToast((prev) => ({ ...prev, show: false }))
+    }, 5000)
+
+    // Play sound effect if available
+    try {
+      const audio = new Audio('/assets/notification.mp3')
+      audio.volume = 0.3
+      audio.play().catch((err) => {
+        console.log('🔇 Audio play failed (this is OK):', err)
       })
+    } catch (e) {
+      console.log('🔇 Audio error (this is OK):', e)
+    }
+  }, [getFirstName, updateCurrentBatch])
+
+  // Fetch entries and set up real-time subscription
+  useEffect(() => {
+    let channel: RealtimeChannel | null = null
+    
+    const setupSubscription = async () => {
+      // First, fetch initial entries
+      await fetchEntries()
+
+      // Subscribe to real-time updates
+      console.log('🔌 Setting up real-time subscription...')
+      console.log('📋 Ensuring Realtime is enabled on entries table in Supabase Dashboard')
+      
+      channel = supabase
+        .channel('live_wall_entries', {
+          config: {
+            broadcast: { self: false },
+            presence: { key: '' }
+          }
+        })
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'entries',
+          },
+          (payload) => {
+            console.log('📥 INSERT event received:', payload)
+            console.log('📦 Payload data:', JSON.stringify(payload, null, 2))
+            
+            const newEntry = payload.new as Entry
+            
+            if (!newEntry) {
+              console.error('❌ No new entry data in payload:', payload)
+              return
+            }
+            
+            // Validate required fields
+            if (!newEntry.id) {
+              console.error('❌ Entry missing id:', newEntry)
+              return
+            }
+            
+            if (!newEntry.image_url) {
+              console.error('❌ Entry missing image_url:', newEntry)
+              return
+            }
+            
+            console.log('✅ Valid entry received, processing...')
+            handleNewEntry(newEntry)
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'app_settings',
+          },
+          () => {
+            console.log('⚙️ Settings updated, reloading...')
+            loadSettings()
+          }
+        )
+        .subscribe((status) => {
+          console.log('📡 Subscription status:', status)
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to real-time updates!')
+            console.log('👂 Listening for new entries on entries table...')
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Channel error - check Supabase Realtime is enabled')
+            console.error('📖 Enable Realtime in Supabase Dashboard:')
+            console.error('   1. Go to Database → Replication')
+            console.error('   2. Find "entries" table')
+            console.error('   3. Toggle "Enable Realtime" ON')
+          } else if (status === 'TIMED_OUT') {
+            console.error('⏱️ Subscription timed out - check network connection')
+          } else if (status === 'CLOSED') {
+            console.warn('🔒 Channel closed')
+          }
+        })
+    }
+
+    setupSubscription()
 
     return () => {
-      console.log('🔌 Unsubscribing from real-time updates')
-      channel.unsubscribe()
+      if (channel) {
+        console.log('🔌 Unsubscribing from real-time updates')
+        channel.unsubscribe()
+      }
     }
-  }, [])
+  }, [handleNewEntry])
 
   const fetchEntries = async () => {
     try {
@@ -140,64 +264,7 @@ export default function LivePage() {
     }
   }
 
-  const getFirstName = (fullName: string): string => {
-    if (!fullName) return ''
-    // Extract first name (before first space)
-    const firstName = fullName.trim().split(/\s+/)[0]
-    return firstName || fullName
-  }
 
-  const handleNewEntry = (newEntry: Entry) => {
-    console.log('🎉 New entry received:', newEntry)
-    
-    // Validate entry has required fields
-    if (!newEntry || !newEntry.image_url) {
-      console.warn('⚠️ Invalid entry data:', newEntry)
-      return
-    }
-
-    // Add to entries array
-    setEntries((prev) => {
-      const updated = [newEntry, ...prev]
-      setTotalCount(updated.length)
-      console.log('📊 Total entries:', updated.length)
-      return updated
-    })
-
-    // Show toast notification
-    const firstName = newEntry.name ? getFirstName(newEntry.name) : ''
-    const displayName = firstName || 'מישהו'
-    console.log('🔔 Showing toast for:', displayName)
-    setNewUploadToast({ show: true, name: displayName })
-    
-    // Clear toast after 5 seconds
-    setTimeout(() => {
-      console.log('🔕 Hiding toast')
-      setNewUploadToast({ show: false, name: '' })
-    }, 5000)
-
-    // Play sound effect if available
-    try {
-      const audio = new Audio('/assets/notification.mp3')
-      audio.volume = 0.3
-      audio.play().catch((err) => {
-        console.log('🔇 Audio play failed (this is OK):', err)
-      })
-    } catch (e) {
-      console.log('🔇 Audio error (this is OK):', e)
-    }
-  }
-
-  const updateCurrentBatch = (entriesList: Entry[], startIndex: number) => {
-    const batch: Entry[] = []
-    for (let i = 0; i < slideshowBatchSize; i++) {
-      const index = (startIndex + i) % entriesList.length
-      if (entriesList[index]) {
-        batch.push(entriesList[index])
-      }
-    }
-    setCurrentBatch(batch)
-  }
 
   // Auto-cycle slideshow
   useEffect(() => {
@@ -296,21 +363,24 @@ export default function LivePage() {
       </motion.div>
 
       {/* New Upload Toast Notification - Top Center */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {newUploadToast.show && (
           <motion.div
-            key="toast"
-            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            key={`toast-${newUploadToast.name}`}
+            initial={{ opacity: 0, y: -100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -30, scale: 0.95 }}
+            exit={{ opacity: 0, y: -50, scale: 0.9 }}
             transition={{ 
               type: 'spring', 
-              stiffness: 400, 
-              damping: 25,
-              duration: 0.3
+              stiffness: 500, 
+              damping: 30,
+              duration: 0.4
             }}
-            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] pointer-events-none"
-            style={{ position: 'fixed' }}
+            className="fixed top-4 md:top-8 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none"
+            style={{ 
+              position: 'fixed',
+              zIndex: 9999
+            }}
           >
             <div
               className="glass backdrop-blur-xl bg-black/40 border-2 border-purple-400/60 rounded-2xl px-6 py-4 md:px-8 md:py-5 lg:px-10 lg:py-6 shadow-2xl"
@@ -350,11 +420,11 @@ export default function LivePage() {
                 {/* Text */}
                 <p className="text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-white drop-shadow-lg whitespace-nowrap">
                   {newUploadToast.name === 'מישהו' ? (
-                    <span className="text-white/90">מישהו העלה תמונה חדשה!</span>
+                    <span className="text-white/90">מישהו העלה תמונה חדשה! 🎭</span>
                   ) : (
                     <>
-                      <span className="text-purple-300">{newUploadToast.name}</span>
-                      <span className="text-white/90"> העלה תמונה לתחרות!</span>
+                      <span className="text-purple-300 font-extrabold">{newUploadToast.name}</span>
+                      <span className="text-white/90"> העלה תמונה לתחרות! 🎭</span>
                     </>
                   )}
                 </p>
