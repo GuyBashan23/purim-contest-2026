@@ -417,7 +417,8 @@ export async function checkVoterEligibility(phone: string, phase: 1 | 2) {
   }
 }
 
-// Simplified single vote submission for Eurovision-style voting with "move" logic
+// Robust single vote submission for Eurovision-style voting with "move" logic
+// This function implements the "3 Coins" logic: Switch Rule + Steal Rule
 export async function submitSingleVote(
   voterPhone: string,
   entryId: string,
@@ -426,13 +427,21 @@ export async function submitSingleVote(
   const supabase = await createServerSupabase()
   const supabaseAdmin = createServiceRoleClient()
 
-  // SECURITY CHECK 1: Validate current phase allows voting
-  const { data: appSettings } = await supabaseAdmin
+  console.log(`[submitSingleVote] User ${voterPhone} voting ${points} on entry ${entryId}`)
+
+  // SECURITY CHECK 1: Validate voter phone
+  if (!voterPhone || voterPhone.trim() === '') {
+    console.error('[submitSingleVote] No voter phone provided')
+    return { error: 'מספר טלפון לא תקין' }
+  }
+
+  // SECURITY CHECK 2: Validate current phase allows voting
+  const { data: appSettings, error: settingsError } = await supabaseAdmin
     .from('app_settings')
     .select('current_phase')
     .single()
 
-  if (!appSettings) {
+  if (settingsError || !appSettings) {
     // Fallback: check contest_state for backward compatibility
     const { data: contestState } = await supabaseAdmin
       .from('contest_state')
@@ -440,21 +449,24 @@ export async function submitSingleVote(
       .single()
 
     if (!contestState || (contestState.current_phase !== 'voting' && contestState.current_phase !== 'finals')) {
+      console.error('[submitSingleVote] Voting phase not active')
       return { error: 'ההצבעה לא פעילה כרגע' }
     }
   } else {
     // Check app_settings phase
     if (appSettings.current_phase !== 'VOTING' && appSettings.current_phase !== 'FINALS') {
+      console.error('[submitSingleVote] Voting phase not active:', appSettings.current_phase)
       return { error: 'ההצבעה לא פעילה כרגע' }
     }
   }
 
-  // SECURITY CHECK 2: Validate points (must be 8, 10, or 12)
+  // SECURITY CHECK 3: Validate points (must be 8, 10, or 12)
   if (![8, 10, 12].includes(points)) {
+    console.error('[submitSingleVote] Invalid points:', points)
     return { error: 'נקודות לא תקינות. אפשרויות: 8, 10, 12' }
   }
 
-  // SECURITY CHECK 3: Validate entry exists and get its phone number
+  // SECURITY CHECK 4: Validate entry exists and get its phone number
   const { data: entry, error: entryError } = await supabase
     .from('entries')
     .select('id, phone')
@@ -462,137 +474,107 @@ export async function submitSingleVote(
     .single()
 
   if (entryError || !entry) {
+    console.error('[submitSingleVote] Entry not found:', entryId, entryError)
     return { error: 'התחפושת לא נמצאה' }
   }
 
-  // SECURITY CHECK 4: Prevent self-voting
+  // SECURITY CHECK 5: Prevent self-voting
   if (entry.phone === voterPhone) {
+    console.error('[submitSingleVote] Self-voting attempt blocked')
     return { error: 'לא ניתן להצביע עבור התחפושת שלך' }
   }
 
   // Determine phase (1 for VOTING, 2 for FINALS)
   const currentPhase = appSettings?.current_phase === 'FINALS' ? 2 : 1
 
-  // THE "3 COINS" LOGIC - Strict Eurovision voting rules:
-  // 1. "Switch Rule": User can only vote ONCE per entry (update if exists)
-  // 2. "Steal Rule": User can only have ONE vote with each point value (8, 10, 12)
-
-  // STEP 1: Check if user already voted on THIS entry (Switch Rule)
-  const { data: existingVoteOnEntry, error: checkEntryError } = await supabase
-    .from('votes')
-    .select('id, points')
-    .eq('voter_phone', voterPhone)
-    .eq('entry_id', entryId)
-    .eq('phase', currentPhase)
-    .single()
-
-  if (checkEntryError && checkEntryError.code !== 'PGRST116') {
-    // PGRST116 = no rows returned (expected if no vote exists)
-    return { error: 'שגיאה בבדיקת הצבעות קיימות' }
-  }
-
-  // STEP 2: Check if user already gave THIS point value to ANOTHER entry (Steal Rule)
-  const { data: existingVoteForPoints, error: checkPointsError } = await supabase
-    .from('votes')
-    .select('id, entry_id')
-    .eq('voter_phone', voterPhone)
-    .eq('points', points)
-    .eq('phase', currentPhase)
-    .single()
-
-  if (checkPointsError && checkPointsError.code !== 'PGRST116') {
-    return { error: 'שגיאה בבדיקת הצבעות קיימות' }
-  }
-
-  // STEP 3: Handle the logic
-  let movedFromEntryId: string | undefined = undefined
-  let updatedExisting = false
-
-  if (existingVoteOnEntry) {
-    // Switch Rule: User already voted on this entry
-    if (existingVoteOnEntry.points === points) {
-      // Same points on same entry - no-op
-      return { success: true, moved: false, updated: false }
-    }
-
-    // Different points on same entry - UPDATE the vote
-    // But first, we need to handle the Steal Rule if the new points are already used elsewhere
-    if (existingVoteForPoints && existingVoteForPoints.entry_id !== entryId) {
-      // The new points are already used on another entry - delete that vote first
-      const { error: deleteError } = await supabase
-        .from('votes')
-        .delete()
-        .eq('id', existingVoteForPoints.id)
-
-      if (deleteError) {
-        return { error: 'שגיאה בהסרת הצבעה קודמת' }
-      }
-
-      movedFromEntryId = existingVoteForPoints.entry_id
-    }
-
-    // Now update the vote on this entry
-    const { error: updateError } = await supabase
+  // THE "3 COINS" LOGIC - Sequential operations to prevent race conditions
+  
+  try {
+    // STEP A: Remove any existing vote by THIS user on THIS entry (Switch Rule)
+    // This handles the case where user is changing their vote on the same entry
+    const { error: deleteEntryError, count: deletedEntryCount } = await supabase
       .from('votes')
-      .update({ points: points })
-      .eq('id', existingVoteOnEntry.id)
+      .delete()
+      .eq('voter_phone', voterPhone)
+      .eq('entry_id', entryId)
+      .eq('phase', currentPhase)
+      .select('*', { count: 'exact', head: true })
 
-    if (updateError) {
-      return { error: 'שגיאה בעדכון הצבעה' }
+    if (deleteEntryError) {
+      console.error('[submitSingleVote] Error deleting existing vote on entry:', deleteEntryError)
+      return { error: 'שגיאה בהסרת הצבעה קודמת על תמונה זו' }
     }
 
-    updatedExisting = true
-  } else {
-    // No vote on this entry yet - Steal Rule applies
-    if (existingVoteForPoints) {
-      // User already gave these points to another entry - delete old vote
-      const { error: deleteError } = await supabase
-        .from('votes')
-        .delete()
-        .eq('id', existingVoteForPoints.id)
-
-      if (deleteError) {
-        return { error: 'שגיאה בהסרת הצבעה קודמת' }
-      }
-
-      movedFromEntryId = existingVoteForPoints.entry_id
+    if (deletedEntryCount && deletedEntryCount > 0) {
+      console.log(`[submitSingleVote] Deleted ${deletedEntryCount} existing vote(s) on this entry`)
     }
 
-    // Insert the new vote
-    const { error: insertError } = await supabase.from('votes').insert({
-      voter_phone: voterPhone,
-      entry_id: entryId,
-      points: points,
-      phase: currentPhase,
-    })
+    // STEP B: Remove any existing vote by THIS user with THIS EXACT SCORE on ANY entry (Steal Rule)
+    // This handles the case where user is "stealing" their 8/10/12 points from another entry
+    const { error: deletePointsError, count: deletedPointsCount } = await supabase
+      .from('votes')
+      .delete()
+      .eq('voter_phone', voterPhone)
+      .eq('points', points)
+      .eq('phase', currentPhase)
+      .select('*', { count: 'exact', head: true })
+
+    if (deletePointsError) {
+      console.error('[submitSingleVote] Error deleting existing vote with same points:', deletePointsError)
+      return { error: 'שגיאה בהסרת הצבעה קודמת עם נקודות אלו' }
+    }
+
+    if (deletedPointsCount && deletedPointsCount > 0) {
+      console.log(`[submitSingleVote] Deleted ${deletedPointsCount} existing vote(s) with same points`)
+    }
+
+    // STEP C: Insert the new vote
+    const { error: insertError, data: insertedVote } = await supabase
+      .from('votes')
+      .insert({
+        voter_phone: voterPhone,
+        entry_id: entryId,
+        points: points,
+        phase: currentPhase,
+      })
+      .select()
+      .single()
 
     if (insertError) {
-      // Handle unique constraint violation (shouldn't happen, but just in case)
+      console.error('[submitSingleVote] Error inserting vote:', insertError)
+      // Handle unique constraint violation
       if (insertError.code === '23505' || insertError.message?.includes('unique')) {
         return { error: 'כבר הצבעת עם נקודות אלו' }
       }
-      return { error: insertError.message }
+      return { error: `שגיאה בהצבעה: ${insertError.message}` }
     }
-  }
 
-  // Update voters table (mark as voted in phase)
-  if (currentPhase === 1) {
-    await supabase
-      .from('voters')
-      .upsert({ phone: voterPhone, voted_phase_2: true }, { onConflict: 'phone' })
-  } else if (currentPhase === 2) {
-    await supabase
-      .from('voters')
-      .upsert({ phone: voterPhone, voted_phase_3: true }, { onConflict: 'phone' })
-  }
+    console.log('[submitSingleVote] Vote inserted successfully:', insertedVote?.id)
 
-  revalidatePath('/gallery')
-  revalidatePath('/live')
-  return { 
-    success: true, 
-    moved: !!movedFromEntryId,
-    updated: updatedExisting,
-    previousEntryId: movedFromEntryId 
+    // STEP D: Update voters table (mark as voted in phase)
+    if (currentPhase === 1) {
+      await supabase
+        .from('voters')
+        .upsert({ phone: voterPhone, voted_phase_2: true }, { onConflict: 'phone' })
+    } else if (currentPhase === 2) {
+      await supabase
+        .from('voters')
+        .upsert({ phone: voterPhone, voted_phase_3: true }, { onConflict: 'phone' })
+    }
+
+    // Revalidate paths to refresh UI
+    revalidatePath('/gallery')
+    revalidatePath('/live')
+
+    console.log('[submitSingleVote] Vote successful!')
+    return { 
+      success: true, 
+      moved: (deletedPointsCount && deletedPointsCount > 0) || false,
+      updated: (deletedEntryCount && deletedEntryCount > 0) || false
+    }
+  } catch (error: any) {
+    console.error('[submitSingleVote] Unexpected error:', error)
+    return { error: `שגיאה בלתי צפויה: ${error?.message || 'Unknown error'}` }
   }
 }
 
