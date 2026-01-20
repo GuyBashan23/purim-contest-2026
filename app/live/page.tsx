@@ -28,6 +28,26 @@ export default function LivePage() {
   // Load slideshow settings
   useEffect(() => {
     loadSettings()
+    
+    // Force full screen by removing layout constraints
+    document.body.style.margin = '0'
+    document.body.style.padding = '0'
+    document.body.style.overflow = 'hidden'
+    
+    // Remove any wrapper divs that might constrain the page
+    const wrapper = document.querySelector('body > div > div') as HTMLElement | null
+    if (wrapper && wrapper instanceof HTMLElement) {
+      wrapper.style.maxWidth = 'none'
+      wrapper.style.padding = '0'
+      wrapper.style.margin = '0'
+      wrapper.style.width = '100vw'
+      wrapper.style.height = '100vh'
+    }
+    
+    return () => {
+      // Restore defaults on unmount
+      document.body.style.overflow = ''
+    }
   }, [])
 
   const loadSettings = async () => {
@@ -43,6 +63,7 @@ export default function LivePage() {
     fetchEntries()
 
     // Subscribe to real-time updates
+    console.log('🔌 Setting up real-time subscription...')
     const channel = supabase
       .channel('live_wall_entries')
       .on(
@@ -53,8 +74,13 @@ export default function LivePage() {
           table: 'entries',
         },
         (payload) => {
+          console.log('📥 INSERT event received:', payload)
           const newEntry = payload.new as Entry
-          handleNewEntry(newEntry)
+          if (newEntry) {
+            handleNewEntry(newEntry)
+          } else {
+            console.warn('⚠️ No new entry data in payload:', payload)
+          }
         }
       )
       .on(
@@ -65,29 +91,43 @@ export default function LivePage() {
           table: 'app_settings',
         },
         () => {
+          console.log('⚙️ Settings updated, reloading...')
           loadSettings()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to real-time updates!')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Channel error - check Supabase Realtime is enabled')
+        }
+      })
 
     return () => {
+      console.log('🔌 Unsubscribing from real-time updates')
       channel.unsubscribe()
     }
   }, [])
 
   const fetchEntries = async () => {
     try {
+      console.log('📥 Fetching entries...')
       const { data, error } = await supabase
         .from('entries')
         .select('id, name, costume_title, image_url')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error fetching entries:', error)
+        throw error
+      }
 
       const validEntries = (data || []).filter(
         (entry) => entry.image_url && entry.image_url.trim() !== ''
       )
 
+      console.log(`✅ Fetched ${validEntries.length} valid entries`)
       setEntries(validEntries)
       setTotalCount(validEntries.length)
 
@@ -96,21 +136,34 @@ export default function LivePage() {
         updateCurrentBatch(validEntries, 0)
       }
     } catch (error) {
-      console.error('Error fetching entries:', error)
+      console.error('❌ Error fetching entries:', error)
     }
   }
 
   const handleNewEntry = (newEntry: Entry) => {
+    console.log('🎉 New entry received:', newEntry)
+    
+    // Validate entry has required fields
+    if (!newEntry || !newEntry.name || !newEntry.image_url) {
+      console.warn('⚠️ Invalid entry data:', newEntry)
+      return
+    }
+
     // Add to entries array
     setEntries((prev) => {
       const updated = [newEntry, ...prev]
       setTotalCount(updated.length)
+      console.log('📊 Total entries:', updated.length)
       return updated
     })
 
     // Show toast notification
+    console.log('🔔 Showing toast for:', newEntry.name)
     setNewUploadToast({ show: true, name: newEntry.name })
+    
+    // Clear toast after 5 seconds
     setTimeout(() => {
+      console.log('🔕 Hiding toast')
       setNewUploadToast({ show: false, name: '' })
     }, 5000)
 
@@ -118,11 +171,11 @@ export default function LivePage() {
     try {
       const audio = new Audio('/assets/notification.mp3')
       audio.volume = 0.3
-      audio.play().catch(() => {
-        // Ignore audio errors
+      audio.play().catch((err) => {
+        console.log('🔇 Audio play failed (this is OK):', err)
       })
     } catch (e) {
-      // Ignore audio errors
+      console.log('🔇 Audio error (this is OK):', e)
     }
   }
 
@@ -170,7 +223,20 @@ export default function LivePage() {
   }, [slideshowBatchSize])
 
   return (
-    <div className="h-[100dvh] w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden">
+    <div 
+      className="fixed inset-0 h-[100dvh] w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden z-50"
+      style={{
+        margin: 0,
+        padding: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+      }}
+    >
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(12)].map((_, i) => (
@@ -221,14 +287,16 @@ export default function LivePage() {
       </motion.div>
 
       {/* New Upload Toast Overlay */}
-      <AnimatePresence>
-        {newUploadToast.show && (
+      <AnimatePresence mode="wait">
+        {newUploadToast.show && newUploadToast.name && (
           <motion.div
+            key="toast"
             initial={{ opacity: 0, y: -100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -100, scale: 0.8 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none"
+            style={{ position: 'fixed' }}
           >
             <div
               className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-6 sm:p-8 md:p-10 lg:p-12 xl:p-14 2xl:p-16 rounded-2xl sm:rounded-3xl lg:rounded-4xl shadow-2xl border-2 sm:border-3 md:border-4 border-white/30"
@@ -370,6 +438,25 @@ export default function LivePage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Global styles for full screen */}
+      <style jsx global>{`
+        /* Override layout constraints for live page */
+        body > div > div {
+          max-width: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+        
+        /* Ensure full screen */
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
+      `}</style>
     </div>
   )
 }
