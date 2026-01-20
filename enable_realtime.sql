@@ -40,8 +40,9 @@ ALTER TABLE public.entries
   REPLICA IDENTITY FULL;
 
 -- שלב 4: בדיקה - האם הטבלה נוספה ל-publication?
--- אם הכל תקין, תראה שורה אחת עם: schemaname='public', tablename='entries'
+-- אם הכל תקין, תראה שורה אחת עם הטבלה entries
 SELECT 
+  pubname,
   schemaname,
   tablename,
   '✅ Realtime enabled!' as status
@@ -51,9 +52,9 @@ WHERE pubname = 'supabase_realtime'
 
 -- שלב 5: בדיקת Replica Identity
 SELECT 
-  schemaname,
-  relname as table_name,
-  CASE relreplident
+  n.nspname as schema_name,
+  c.relname as table_name,
+  CASE c.relreplident
     WHEN 'd' THEN 'DEFAULT (only primary key)'
     WHEN 'n' THEN 'NOTHING (no replication)'
     WHEN 'f' THEN 'FULL ✅ (all columns - recommended)'
@@ -61,7 +62,7 @@ SELECT
   END as replica_identity
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE relname = 'entries' AND nspname = 'public';
+WHERE c.relname = 'entries' AND n.nspname = 'public';
 
 -- ========================================
 -- אחרי שהרצת את הקוד:
